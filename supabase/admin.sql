@@ -4,14 +4,14 @@
 --
 -- ANTES de ejecutarlo, crea tu usuario admin:
 --   Dashboard → Authentication → Users → Add user → Create new user
---   Email: jhenigc@gmail.com  +  una contraseña  +  marca "Auto Confirm User"
+--   Email: carloslens88@gmail.com  +  una contraseña  +  marca "Auto Confirm User"
 
 -- Escritura en la tabla de eventos, solo para el admin.
 create policy "Admin escribe eventos"
   on public.events for all
   to authenticated
-  using ((auth.jwt() ->> 'email') = 'jhenigc@gmail.com')
-  with check ((auth.jwt() ->> 'email') = 'jhenigc@gmail.com');
+  using ((auth.jwt() ->> 'email') = 'carloslens88@gmail.com')
+  with check ((auth.jwt() ->> 'email') = 'carloslens88@gmail.com');
 
 -- Bucket público para las fotos de los eventos (1 GB gratis en Supabase).
 insert into storage.buckets (id, name, public)
@@ -28,14 +28,14 @@ create policy "Lectura pública de imágenes"
 create policy "Admin sube imágenes"
   on storage.objects for insert
   to authenticated
-  with check (bucket_id = 'event-images' and (auth.jwt() ->> 'email') = 'jhenigc@gmail.com');
+  with check (bucket_id = 'event-images' and (auth.jwt() ->> 'email') = 'carloslens88@gmail.com');
 
 create policy "Admin actualiza imágenes"
   on storage.objects for update
   to authenticated
-  using (bucket_id = 'event-images' and (auth.jwt() ->> 'email') = 'jhenigc@gmail.com');
+  using (bucket_id = 'event-images' and (auth.jwt() ->> 'email') = 'carloslens88@gmail.com');
 
 create policy "Admin borra imágenes"
   on storage.objects for delete
   to authenticated
-  using (bucket_id = 'event-images' and (auth.jwt() ->> 'email') = 'jhenigc@gmail.com');
+  using (bucket_id = 'event-images' and (auth.jwt() ->> 'email') = 'carloslens88@gmail.com');
