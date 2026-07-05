@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '@/constants/theme';
 import { Coords, distanceKm, formatDistance } from '@/lib/geo';
-import { formatAges, formatEventDate, formatPrice, getCategory, KidsEvent } from '@/lib/types';
+import { formatAges, formatPrice, formatSchedule, getCategory, KidsEvent } from '@/lib/types';
 
 type Props = {
   event: KidsEvent;
@@ -42,7 +42,7 @@ export function EventCard({ event, userCoords }: Props) {
           <Text style={styles.title} numberOfLines={2}>
             {event.title}
           </Text>
-          <Text style={styles.meta}>{formatEventDate(event.starts_at)}</Text>
+          <Text style={styles.meta}>{formatSchedule(event)}</Text>
           <Text style={styles.meta} numberOfLines={1}>
             📍 {event.venue_name ?? event.address ?? event.city}
             {distance != null ? `  ·  a ${formatDistance(distance)}` : ''}

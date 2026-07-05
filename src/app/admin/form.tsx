@@ -13,10 +13,18 @@ import {
   View,
 } from 'react-native';
 
+import { Ionicons } from '@expo/vector-icons';
+
 import { colors } from '@/constants/theme';
 import { geocodeAddress, uploadEventImage } from '@/lib/admin';
 import { supabase } from '@/lib/supabase';
-import { CATEGORIES, CategoryId, KidsEvent } from '@/lib/types';
+import { CATEGORIES, CategoryId, DateMode, KidsEvent } from '@/lib/types';
+
+const DATE_MODES: { id: DateMode; label: string; hint: string }[] = [
+  { id: 'single', label: '📅 Un día', hint: 'El evento ocurre una sola vez' },
+  { id: 'multiple', label: '🗓️ Varias fechas', hint: 'Sesiones sueltas, ej. 7, 9 y 12 de julio' },
+  { id: 'range', label: '📆 Temporada', hint: 'Abierto de forma continua entre dos fechas' },
+];
 
 type FormState = {
   title: string;
@@ -24,7 +32,6 @@ type FormState = {
   category: CategoryId;
   age_min: string;
   age_max: string;
-  starts_at: string; // "AAAA-MM-DD HH:mm" en hora local
   venue_name: string;
   address: string;
   city: string;
@@ -41,7 +48,6 @@ const EMPTY: FormState = {
   category: 'taller',
   age_min: '0',
   age_max: '12',
-  starts_at: '',
   venue_name: '',
   address: '',
   city: 'Madrid',
@@ -61,6 +67,10 @@ function toLocalInput(iso: string): string {
 export default function EventForm() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const [form, setForm] = useState<FormState>(EMPTY);
+  const [dateMode, setDateMode] = useState<DateMode>('single');
+  const [dates, setDates] = useState<string[]>(['']); // "AAAA-MM-DD HH:mm", una por sesión
+  const [rangeStart, setRangeStart] = useState(''); // "AAAA-MM-DD"
+  const [rangeEnd, setRangeEnd] = useState('');
   const [pickedImage, setPickedImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [saving, setSaving] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
@@ -79,13 +89,19 @@ export default function EventForm() {
       .then(({ data }) => {
         if (!data) return;
         const event = data as KidsEvent;
+        setDateMode(event.date_mode);
+        if (event.date_mode === 'range') {
+          setRangeStart(toLocalInput(event.starts_at).slice(0, 10));
+          setRangeEnd(toLocalInput(event.ends_at ?? event.starts_at).slice(0, 10));
+        } else {
+          setDates([event.starts_at, ...(event.extra_dates ?? [])].map(toLocalInput));
+        }
         setForm({
           title: event.title,
           description: event.description ?? '',
           category: event.category,
           age_min: String(event.age_min),
           age_max: String(event.age_max),
-          starts_at: toLocalInput(event.starts_at),
           venue_name: event.venue_name ?? '',
           address: event.address ?? '',
           city: event.city,
@@ -127,12 +143,36 @@ export default function EventForm() {
     setGeocoding(false);
   };
 
+  // Construye starts_at / ends_at / extra_dates según el modo de fechas.
+  const buildSchedule = ():
+    | { starts_at: string; ends_at: string | null; extra_dates: string[] }
+    | string => {
+    if (dateMode === 'range') {
+      const start = new Date(`${rangeStart.trim()}T00:00`);
+      const end = new Date(`${rangeEnd.trim()}T23:59`);
+      if (isNaN(start.getTime()) || isNaN(end.getTime()))
+        return 'Fechas de la temporada inválidas: usa el formato AAAA-MM-DD';
+      if (end < start) return 'La fecha de fin es anterior a la de inicio';
+      return { starts_at: start.toISOString(), ends_at: end.toISOString(), extra_dates: [] };
+    }
+    const filled = (dateMode === 'single' ? dates.slice(0, 1) : dates).filter((d) => d.trim());
+    if (filled.length === 0) return 'Añade al menos una fecha';
+    const parsed = filled.map((d) => new Date(d.trim().replace(' ', 'T')));
+    if (parsed.some((d) => isNaN(d.getTime())))
+      return 'Fecha inválida: usa el formato AAAA-MM-DD HH:mm, ej. 2026-07-20 11:00';
+    parsed.sort((a, b) => a.getTime() - b.getTime());
+    return {
+      starts_at: parsed[0].toISOString(),
+      ends_at: null,
+      extra_dates: parsed.slice(1).map((d) => d.toISOString()),
+    };
+  };
+
   const save = async () => {
     setError(null);
     if (!form.title.trim()) return setError('El título es obligatorio');
-    const startsAt = new Date(form.starts_at.replace(' ', 'T'));
-    if (isNaN(startsAt.getTime()))
-      return setError('Fecha inválida: usa el formato AAAA-MM-DD HH:mm, ej. 2026-07-20 11:00');
+    const schedule = buildSchedule();
+    if (typeof schedule === 'string') return setError(schedule);
 
     setSaving(true);
     try {
@@ -145,7 +185,8 @@ export default function EventForm() {
         category: form.category,
         age_min: parseInt(form.age_min, 10) || 0,
         age_max: parseInt(form.age_max, 10) || 12,
-        starts_at: startsAt.toISOString(),
+        date_mode: dateMode,
+        ...schedule,
         venue_name: form.venue_name.trim() || null,
         address: form.address.trim() || null,
         city: form.city.trim() || 'Madrid',
@@ -222,14 +263,79 @@ export default function EventForm() {
         </Field>
       </View>
 
-      <Field label="Fecha y hora * (AAAA-MM-DD HH:mm)">
-        <TextInput
-          style={styles.input}
-          value={form.starts_at}
-          onChangeText={set('starts_at')}
-          placeholder="2026-07-20 11:00"
-          placeholderTextColor={colors.textMuted}
-        />
+      <Field label="Fechas *">
+        <View style={styles.chips}>
+          {DATE_MODES.map((mode) => {
+            const active = dateMode === mode.id;
+            return (
+              <TouchableOpacity
+                key={mode.id}
+                style={[styles.chip, active && styles.modeChipActive]}
+                onPress={() => setDateMode(mode.id)}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{mode.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <Text style={styles.hint}>{DATE_MODES.find((m) => m.id === dateMode)?.hint}</Text>
+
+        {dateMode === 'range' ? (
+          <View style={styles.rowFields}>
+            <View style={styles.half}>
+              <Text style={styles.label}>Desde (AAAA-MM-DD)</Text>
+              <TextInput
+                style={styles.input}
+                value={rangeStart}
+                onChangeText={setRangeStart}
+                placeholder="2026-02-01"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
+            <View style={styles.half}>
+              <Text style={styles.label}>Hasta (AAAA-MM-DD)</Text>
+              <TextInput
+                style={styles.input}
+                value={rangeEnd}
+                onChangeText={setRangeEnd}
+                placeholder="2026-10-12"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
+          </View>
+        ) : (
+          <>
+            {(dateMode === 'single' ? dates.slice(0, 1) : dates).map((value, index) => (
+              <View key={index} style={styles.dateRow}>
+                <TextInput
+                  style={[styles.input, styles.dateInput]}
+                  value={value}
+                  onChangeText={(text) =>
+                    setDates((current) => current.map((d, i) => (i === index ? text : d)))
+                  }
+                  placeholder="2026-07-20 11:00"
+                  placeholderTextColor={colors.textMuted}
+                />
+                {dateMode === 'multiple' && dates.length > 1 ? (
+                  <TouchableOpacity
+                    onPress={() => setDates((current) => current.filter((_, i) => i !== index))}
+                    hitSlop={10}
+                  >
+                    <Ionicons name="close-circle" size={22} color={colors.primary} />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ))}
+            {dateMode === 'multiple' ? (
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={() => setDates((current) => [...current, ''])}
+              >
+                <Text style={styles.secondaryButtonText}>＋ Añadir otra fecha</Text>
+              </TouchableOpacity>
+            ) : null}
+          </>
+        )}
       </Field>
 
       <Field label="Lugar (nombre)">
@@ -345,7 +451,11 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13, fontWeight: '600', color: colors.text },
   chipTextActive: { color: '#FFFFFF' },
   rowFields: { flexDirection: 'row', gap: 12 },
-  half: { flex: 1 },
+  half: { flex: 1, gap: 6 },
+  modeChipActive: { backgroundColor: colors.secondary, borderColor: colors.secondary },
+  hint: { fontSize: 12, color: colors.textMuted },
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dateInput: { flex: 1 },
   secondaryButton: {
     borderWidth: 1,
     borderColor: colors.secondary,

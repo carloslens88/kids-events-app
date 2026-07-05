@@ -11,8 +11,15 @@ create table public.events (
   ),
   age_min integer not null default 0 check (age_min >= 0),
   age_max integer not null default 12 check (age_max >= age_min),
+  -- Calendario del evento:
+  --   single   → un solo día: starts_at
+  --   multiple → varias fechas sueltas: starts_at + extra_dates
+  --   range    → temporada continua: de starts_at a ends_at
+  date_mode text not null default 'single' check (date_mode in ('single', 'multiple', 'range')),
   starts_at timestamptz not null,
   ends_at timestamptz,
+  extra_dates timestamptz[] not null default '{}',
+  last_date timestamptz, -- última fecha relevante; la calcula un trigger
   venue_name text,
   address text,
   city text not null default 'Madrid',
@@ -24,8 +31,31 @@ create table public.events (
   created_at timestamptz not null default now()
 );
 
+-- last_date se calcula sola en cada insert/update.
+create or replace function public.compute_event_last_date()
+returns trigger
+language plpgsql
+as $$
+declare
+  max_extra timestamptz;
+begin
+  select max(d) into max_extra from unnest(new.extra_dates) as d;
+  new.last_date := greatest(
+    new.starts_at,
+    coalesce(new.ends_at, new.starts_at),
+    coalesce(max_extra, new.starts_at)
+  );
+  return new;
+end;
+$$;
+
+create trigger events_compute_last_date
+  before insert or update on public.events
+  for each row execute function public.compute_event_last_date();
+
 -- Índices para las consultas de la app (próximos eventos + filtros).
 create index events_starts_at_idx on public.events (starts_at);
+create index events_last_date_idx on public.events (last_date);
 create index events_category_idx on public.events (category);
 create index events_city_idx on public.events (city);
 

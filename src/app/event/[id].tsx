@@ -16,8 +16,9 @@ import {
 
 import { colors } from '@/constants/theme';
 import { useFavorites } from '@/lib/favorites';
+import { addToCalendar, shareEvent } from '@/lib/share';
 import { supabase } from '@/lib/supabase';
-import { formatAges, formatEventDate, formatPrice, getCategory, KidsEvent } from '@/lib/types';
+import { formatAges, formatPrice, formatScheduleLines, getCategory, KidsEvent } from '@/lib/types';
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -70,13 +71,18 @@ export default function EventDetailScreen() {
       <Stack.Screen
         options={{
           headerRight: () => (
-            <Pressable onPress={() => toggle(event.id)} hitSlop={12}>
-              <Ionicons
-                name={isFavorite ? 'heart' : 'heart-outline'}
-                size={26}
-                color={colors.primary}
-              />
-            </Pressable>
+            <View style={styles.headerButtons}>
+              <Pressable onPress={() => shareEvent(event)} hitSlop={12}>
+                <Ionicons name="share-outline" size={24} color={colors.primary} />
+              </Pressable>
+              <Pressable onPress={() => toggle(event.id)} hitSlop={12}>
+                <Ionicons
+                  name={isFavorite ? 'heart' : 'heart-outline'}
+                  size={26}
+                  color={colors.primary}
+                />
+              </Pressable>
+            </View>
           ),
         }}
       />
@@ -97,10 +103,17 @@ export default function EventDetailScreen() {
           </View>
           <Text style={styles.title}>{event.title}</Text>
 
-          <View style={styles.infoRow}>
-            <Ionicons name="calendar-outline" size={18} color={colors.textMuted} />
-            <Text style={styles.infoText}>{formatEventDate(event.starts_at)}</Text>
-          </View>
+          {formatScheduleLines(event).map((line, index) => (
+            <View style={styles.infoRow} key={index}>
+              <Ionicons
+                name="calendar-outline"
+                size={18}
+                color={colors.textMuted}
+                style={index > 0 ? styles.invisibleIcon : undefined}
+              />
+              <Text style={styles.infoText}>{line}</Text>
+            </View>
+          ))}
           <View style={styles.infoRow}>
             <Ionicons name="happy-outline" size={18} color={colors.textMuted} />
             <Text style={styles.infoText}>{formatAges(event)}</Text>
@@ -124,6 +137,17 @@ export default function EventDetailScreen() {
             <Ionicons name="navigate-outline" size={18} color="#FFFFFF" />
             <Text style={styles.mapsButtonText}>Cómo llegar</Text>
           </TouchableOpacity>
+
+          <View style={styles.secondaryRow}>
+            <TouchableOpacity style={styles.secondaryButton} onPress={() => addToCalendar(event)}>
+              <Ionicons name="calendar-outline" size={17} color={colors.secondary} />
+              <Text style={styles.secondaryButtonText}>Al calendario</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryButton} onPress={() => shareEvent(event)}>
+              <Ionicons name="share-social-outline" size={17} color={colors.secondary} />
+              <Text style={styles.secondaryButtonText}>Compartir</Text>
+            </TouchableOpacity>
+          </View>
 
           {event.source_url ? (
             <TouchableOpacity onPress={() => Linking.openURL(event.source_url!)}>
@@ -161,6 +185,21 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   mapsButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  headerButtons: { flexDirection: 'row', alignItems: 'center', gap: 18 },
+  invisibleIcon: { opacity: 0 },
+  secondaryRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  secondaryButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.secondary,
+    borderRadius: 12,
+    paddingVertical: 12,
+  },
+  secondaryButtonText: { color: colors.secondary, fontSize: 14, fontWeight: '700' },
   sourceLink: { color: colors.secondary, fontSize: 15, fontWeight: '600', textAlign: 'center', marginTop: 8 },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
 });

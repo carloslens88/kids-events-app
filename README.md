@@ -8,7 +8,10 @@ Catálogo móvil (Android + iOS) de eventos infantiles por ciudad, construido co
 - Lista de próximos eventos con foto, categoría, edades, precio y distancia a tu ubicación.
 - Selector de ciudad: las ciudades disponibles se deducen de los eventos de la base de datos.
 - Filtros por categoría (teatro, talleres, aire libre…) y rango de edad.
-- Detalle del evento con botón "Cómo llegar" (abre Google/Apple Maps) y enlace a entradas.
+- Búsqueda por texto (sin distinguir acentos) y tres tipos de calendario por evento:
+  un día, varias fechas sueltas o temporada continua (ej. una exposición de feb a oct).
+- Detalle del evento con "Cómo llegar" (Google/Apple Maps), "Añadir al calendario",
+  botón de compartir (WhatsApp, etc.) y enlace a entradas.
 - Favoritos guardados en el dispositivo (sin necesidad de crear cuenta).
 
 ## Puesta en marcha (primera vez)
@@ -66,8 +69,9 @@ src/
     geo.ts              # Ubicación del usuario y distancias (Haversine)
   app/admin/            # Panel de administración (login + CRUD de eventos)
 supabase/
-  schema.sql            # Esquema de la base de datos (ejecutar 1 vez)
+  schema.sql            # Esquema de la base de datos (ejecutar 1 vez, instalación nueva)
   admin.sql             # Permisos del admin + bucket de imágenes (ejecutar 1 vez)
+  migration-fechas.sql  # Migración: fechas múltiples y temporadas (solo BD ya existentes)
   seed.sql              # Eventos de ejemplo en Madrid
 ```
 

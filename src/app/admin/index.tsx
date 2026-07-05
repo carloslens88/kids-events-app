@@ -6,7 +6,7 @@ import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native
 import { colors } from '@/constants/theme';
 import { confirmAction } from '@/lib/admin';
 import { supabase } from '@/lib/supabase';
-import { formatEventDate, getCategory, KidsEvent } from '@/lib/types';
+import { formatSchedule, getCategory, KidsEvent } from '@/lib/types';
 
 export default function AdminEventList() {
   const [events, setEvents] = useState<KidsEvent[]>([]);
@@ -48,7 +48,7 @@ export default function AdminEventList() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => {
-          const past = new Date(item.starts_at) < new Date();
+          const past = new Date(item.last_date ?? item.starts_at) < new Date();
           return (
             <View style={[styles.row, past && styles.rowPast]}>
               <Text style={styles.rowEmoji}>{getCategory(item.category).emoji}</Text>
@@ -62,7 +62,7 @@ export default function AdminEventList() {
                     {item.title}
                   </Text>
                   <Text style={styles.rowMeta}>
-                    {formatEventDate(item.starts_at)} · {item.city}
+                    {formatSchedule(item)} · {item.city}
                     {past ? '  (pasado)' : ''}
                   </Text>
                 </TouchableOpacity>

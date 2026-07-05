@@ -42,6 +42,12 @@
         }
       ],
       [
+        "expo-calendar",
+        {
+          "calendarPermission": "Permite guardar eventos infantiles en tu calendario."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#FF6B6B",
