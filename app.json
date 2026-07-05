@@ -12,11 +12,11 @@
       "en": "./assets/locales/en.json"
     },
     "ios": {
-      "bundleIdentifier": "com.jhenigc.pequeeventos",
+      "bundleIdentifier": "io.github.carloslens88.pequeeventos",
       "supportsTablet": true
     },
     "android": {
-      "package": "com.jhenigc.pequeeventos",
+      "package": "io.github.carloslens88.pequeeventos",
       "adaptiveIcon": {
         "backgroundColor": "#FF6B6B",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
