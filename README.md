@@ -91,6 +91,19 @@ La propia app incluye un panel en la ruta `/admin`, pensado para usarse desde el
 La seguridad real está en el servidor: las políticas RLS de Supabase solo aceptan
 escrituras de tu usuario, aunque alguien encuentre la ruta /admin en la app.
 
+## Web pública
+
+El catálogo está publicado como web en **https://kids-events-app.expo.app** (EAS Hosting,
+capa gratuita, misma cuenta de Expo). El panel de administración vive en
+https://kids-events-app.expo.app/admin, protegido por el login.
+
+Para publicar una nueva versión de la web tras hacer cambios:
+
+```bash
+npx expo export --platform web
+npx eas-cli deploy --prod
+```
+
 ## Cómo añadir eventos (alternativa manual)
 
 También puedes usar **Table Editor → events → Insert row**
