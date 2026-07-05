@@ -1,18 +1,24 @@
 {
   "expo": {
-    "name": "kids-events-app",
+    "name": "Peque-Eventos",
     "slug": "kids-events-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "kidseventsapp",
     "userInterfaceStyle": "automatic",
+    "locales": {
+      "es": "./assets/locales/es.json",
+      "en": "./assets/locales/en.json"
+    },
     "ios": {
-      "icon": "./assets/expo.icon"
+      "bundleIdentifier": "com.jhenigc.pequeeventos",
+      "supportsTablet": true
     },
     "android": {
+      "package": "com.jhenigc.pequeeventos",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FF6B6B",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -26,11 +32,17 @@
     "plugins": [
       "expo-router",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Usamos tu ubicación para mostrarte eventos infantiles cerca de ti."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#FF6B6B",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 140
         }
       ]
     ],

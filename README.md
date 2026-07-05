@@ -1,56 +1,89 @@
-# Welcome to your Expo app 👋
+# Peque-Eventos (Kids-Events) 🎈
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Catálogo móvil (Android + iOS) de eventos infantiles por ciudad, construido con
+**Expo (React Native + TypeScript)** y **Supabase** como backend gratuito.
 
-## Get started
+## Qué hace la app
 
-1. Install dependencies
+- Lista de próximos eventos con foto, categoría, edades, precio y distancia a tu ubicación.
+- Selector de ciudad: las ciudades disponibles se deducen de los eventos de la base de datos.
+- Filtros por categoría (teatro, talleres, aire libre…) y rango de edad.
+- Detalle del evento con botón "Cómo llegar" (abre Google/Apple Maps) y enlace a entradas.
+- Favoritos guardados en el dispositivo (sin necesidad de crear cuenta).
 
-   ```bash
-   npm install
-   ```
+## Puesta en marcha (primera vez)
 
-2. Start the app
+### 1. Crear el proyecto en Supabase (gratis, ~5 minutos)
 
-   ```bash
-   npx expo start
-   ```
+1. Entra en [supabase.com](https://supabase.com) y regístrate (puedes usar tu cuenta de GitHub o Google).
+2. Pulsa **New project**: elige un nombre (p. ej. `kids-events`), una contraseña
+   para la base de datos (guárdala) y la región **West EU (Ireland)** por cercanía a España.
+3. Espera 1-2 minutos a que el proyecto termine de crearse.
 
-In the output, you'll find options to open the app in a
+### 2. Crear la tabla y cargar eventos de ejemplo
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+1. En el menú lateral de Supabase, abre **SQL Editor**.
+2. Copia el contenido de [`supabase/schema.sql`](supabase/schema.sql), pégalo y pulsa **Run**.
+   Esto crea la tabla `events` con seguridad de solo lectura pública.
+3. Repite con [`supabase/seed.sql`](supabase/seed.sql): carga 12 eventos de ejemplo en Madrid
+   con fechas siempre futuras. Opcional: [`supabase/seed-barcelona.sql`](supabase/seed-barcelona.sql)
+   añade 4 eventos en Barcelona para probar el selector de ciudad.
+4. Comprueba en **Table Editor → events** que ves los eventos. Ese mismo editor
+   es tu "panel de administración": desde ahí añades, editas o borras eventos reales.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### 3. Conectar la app
 
-## Get a fresh project
+1. En Supabase ve a **Project Settings → API** y copia dos valores:
+   - **Project URL** (algo como `https://abcdefg.supabase.co`)
+   - **anon public key** (una clave larga; es pública y segura de incluir en la app)
+2. En este proyecto: `cp .env.example .env` y pega ambos valores en `.env`.
 
-When you're ready, run:
+### 4. Ejecutar la app
 
 ```bash
-npm run reset-project
+npm install
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+- **En tu móvil:** instala la app **Expo Go** (App Store / Play Store) y escanea el QR que sale en la terminal.
+- **En simulador:** pulsa `i` (iOS, necesita Xcode) o `a` (Android, necesita Android Studio).
 
-### Other setup steps
+Si cambias el `.env`, reinicia con `npx expo start -c` para limpiar la caché.
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+## Estructura del código
 
-## Learn more
+```
+src/
+  app/                  # Pantallas (expo-router: cada archivo es una ruta)
+    (tabs)/index.tsx    #   Lista de eventos con filtros
+    (tabs)/favoritos.tsx#   Favoritos guardados en el dispositivo
+    event/[id].tsx      #   Detalle de un evento
+  components/           # Tarjeta de evento, barra de filtros...
+  lib/
+    supabase.ts         # Cliente de Supabase (lee las claves del .env)
+    types.ts            # Tipo KidsEvent, categorías y formateadores
+    favorites.ts        # Favoritos en AsyncStorage
+    geo.ts              # Ubicación del usuario y distancias (Haversine)
+supabase/
+  schema.sql            # Esquema de la base de datos (ejecutar 1 vez)
+  seed.sql              # Eventos de ejemplo en Madrid
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+## Cómo añadir eventos reales
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Opción manual (recomendada para empezar): **Table Editor → events → Insert row**
+en el dashboard de Supabase. Campos clave:
 
-## Join the community
+| Campo | Ejemplo |
+|---|---|
+| `category` | `teatro`, `musica`, `taller`, `aire_libre`, `deporte`, `museo`, `cuentacuentos`, `otros` |
+| `age_min` / `age_max` | `4` / `10` |
+| `starts_at` | `2026-07-20 11:00:00+02` |
+| `lat` / `lng` | cópialos de Google Maps (clic derecho sobre el lugar → coordenadas) |
+| `price_eur` | `0` para gratis |
 
-Join our community of developers creating universal apps.
+## Próximos pasos (cuando la idea esté validada)
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- Publicación: cuenta de Google Play (25 USD, pago único) y Apple Developer (99 USD/año); builds con `eas build`.
+- Formulario para que organizadores propongan eventos (tabla `event_submissions` + moderación).
+- Notificaciones push de nuevos eventos (expo-notifications, gratis).
