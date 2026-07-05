@@ -1,3 +1,8 @@
 {
-  "CFBundleDisplayName": "Peque-Eventos"
+  "ios": {
+    "CFBundleDisplayName": "Peque-Eventos"
+  },
+  "android": {
+    "app_name": "Peque-Eventos"
+  }
 }
