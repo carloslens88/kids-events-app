@@ -64,14 +64,32 @@ src/
     types.ts            # Tipo KidsEvent, categorías y formateadores
     favorites.ts        # Favoritos en AsyncStorage
     geo.ts              # Ubicación del usuario y distancias (Haversine)
+  app/admin/            # Panel de administración (login + CRUD de eventos)
 supabase/
   schema.sql            # Esquema de la base de datos (ejecutar 1 vez)
+  admin.sql             # Permisos del admin + bucket de imágenes (ejecutar 1 vez)
   seed.sql              # Eventos de ejemplo en Madrid
 ```
 
-## Cómo añadir eventos reales
+## Panel de administración (añadir eventos con foto)
 
-Opción manual (recomendada para empezar): **Table Editor → events → Insert row**
+La propia app incluye un panel en la ruta `/admin`, pensado para usarse desde el navegador:
+
+1. **Una sola vez:** en Supabase, crea tu usuario admin en **Authentication → Users →
+   Add user → Create new user** (email + contraseña, marca *Auto Confirm User*), y ejecuta
+   [`supabase/admin.sql`](supabase/admin.sql) en el SQL Editor. Ese script da permisos de
+   escritura solo a tu email y crea el bucket `event-images` para las fotos.
+2. Arranca la versión web: `npx expo start --web` y navega a `http://localhost:8081/admin`.
+3. Inicia sesión y gestiona los eventos: crear, editar, borrar, subir foto y obtener
+   las coordenadas automáticamente a partir de la dirección (geocodificación con
+   OpenStreetMap, gratuita).
+
+La seguridad real está en el servidor: las políticas RLS de Supabase solo aceptan
+escrituras de tu usuario, aunque alguien encuentre la ruta /admin en la app.
+
+## Cómo añadir eventos (alternativa manual)
+
+También puedes usar **Table Editor → events → Insert row**
 en el dashboard de Supabase. Campos clave:
 
 | Campo | Ejemplo |
