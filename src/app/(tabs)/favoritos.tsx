@@ -25,6 +25,7 @@ export default function FavoritesScreen() {
     supabase
       .from('events')
       .select('*')
+      .eq('status', 'published')
       .in('id', favoriteIds)
       .order('starts_at', { ascending: true })
       .then(({ data }) => {

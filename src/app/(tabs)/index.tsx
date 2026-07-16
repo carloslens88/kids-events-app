@@ -61,9 +61,12 @@ export default function EventsScreen() {
     setError(null);
     // last_date >= ahora: eventos de un día futuros, fechas múltiples con
     // sesiones pendientes y temporadas abiertas. RLS ya oculta los borradores.
+    // status explícito: aunque el admin tenga sesión iniciada, el catálogo
+    // muestra exactamente lo que ve el público (los borradores, solo en /admin).
     let query = supabase
       .from('events')
       .select('*')
+      .eq('status', 'published')
       .eq('city', city)
       .gte('last_date', new Date().toISOString())
       .order('starts_at', { ascending: true })
