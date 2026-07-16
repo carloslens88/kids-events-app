@@ -72,6 +72,9 @@ export default function EventForm() {
   const [rangeStart, setRangeStart] = useState(''); // "AAAA-MM-DD"
   const [rangeEnd, setRangeEnd] = useState('');
   const [pickedImage, setPickedImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [status, setStatus] = useState<'draft' | 'published'>('published');
+  const [featured, setFeatured] = useState(false);
+  const [source, setSource] = useState('manual');
   const [saving, setSaving] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +92,9 @@ export default function EventForm() {
       .then(({ data }) => {
         if (!data) return;
         const event = data as KidsEvent;
+        setStatus(event.status);
+        setFeatured(event.featured);
+        setSource(event.source);
         setDateMode(event.date_mode);
         if (event.date_mode === 'range') {
           setRangeStart(toLocalInput(event.starts_at).slice(0, 10));
@@ -187,6 +193,8 @@ export default function EventForm() {
         age_max: parseInt(form.age_max, 10) || 12,
         date_mode: dateMode,
         ...schedule,
+        status,
+        featured,
         venue_name: form.venue_name.trim() || null,
         address: form.address.trim() || null,
         city: form.city.trim() || 'Madrid',
@@ -393,6 +401,39 @@ export default function EventForm() {
         </TouchableOpacity>
       </Field>
 
+      <Field label="Publicación">
+        {source !== 'manual' ? (
+          <Text style={styles.hint}>
+            Importado de {source === 'madrid_opendata' ? 'datos.madrid.es' : source}. Revisa y
+            enriquece antes de publicar.
+          </Text>
+        ) : null}
+        <View style={styles.chips}>
+          <TouchableOpacity
+            style={[styles.chip, status === 'draft' && styles.draftChipActive]}
+            onPress={() => setStatus('draft')}
+          >
+            <Text style={[styles.chipText, status === 'draft' && styles.chipTextActive]}>
+              📝 Borrador
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.chip, status === 'published' && styles.publishedChipActive]}
+            onPress={() => setStatus('published')}
+          >
+            <Text style={[styles.chipText, status === 'published' && styles.chipTextActive]}>
+              ✅ Publicado
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.chip, featured && styles.featuredChipActive]}
+            onPress={() => setFeatured(!featured)}
+          >
+            <Text style={[styles.chipText, featured && styles.chipTextActive]}>⭐ Destacado</Text>
+          </TouchableOpacity>
+        </View>
+      </Field>
+
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <TouchableOpacity style={styles.saveButton} onPress={save} disabled={saving}>
@@ -453,6 +494,9 @@ const styles = StyleSheet.create({
   rowFields: { flexDirection: 'row', gap: 12 },
   half: { flex: 1, gap: 6 },
   modeChipActive: { backgroundColor: colors.secondary, borderColor: colors.secondary },
+  draftChipActive: { backgroundColor: '#F59E0B', borderColor: '#F59E0B' },
+  publishedChipActive: { backgroundColor: colors.free, borderColor: colors.free },
+  featuredChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   hint: { fontSize: 12, color: colors.textMuted },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   dateInput: { flex: 1 },

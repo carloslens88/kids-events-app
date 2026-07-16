@@ -13,6 +13,13 @@ Catálogo móvil (Android + iOS) de eventos infantiles por ciudad, construido co
 - Detalle del evento con "Cómo llegar" (Google/Apple Maps), "Añadir al calendario",
   botón de compartir (WhatsApp, etc.) y enlace a entradas.
 - Favoritos guardados en el dispositivo (sin necesidad de crear cuenta).
+- Perfil de peques: al abrir por primera vez pregunta las edades de tus hijos y
+  personaliza el catálogo (chip "Para mis peques" para activar/desactivar).
+- Filtros rápidos de un toque: Hoy · Este finde · Gratis.
+- Aviso de lluvia (☔) en eventos al aire libre de los próximos 7 días (Open-Meteo, gratis).
+- Vista de mapa (Leaflet + OpenStreetMap, sin API keys) con pines por categoría.
+- Recordatorio semanal opcional (jueves 18:00) con notificación local, sin servidor.
+- Eventos destacados (⭐) que se muestran arriba del catálogo.
 
 ## Puesta en marcha (primera vez)
 
@@ -103,6 +110,33 @@ Para publicar una nueva versión de la web tras hacer cambios:
 npx expo export --platform web
 npx eas-cli deploy --prod
 ```
+
+## Importador automático de eventos (borradores)
+
+Cada madrugada, un workflow de GitHub Actions ([.github/workflows/import-events.yml](.github/workflows/import-events.yml))
+ejecuta [scripts/import-events.mjs](scripts/import-events.mjs), que trae eventos infantiles y
+familiares con 3 meses de vista y los guarda como **borradores**: no aparecen en la app hasta
+que los revisas y publicas desde /admin (pestaña "Borradores").
+
+Fuentes:
+- **datos.madrid.es** (agenda municipal, filtrada por audiencia Niños/Familias) — sin configuración.
+- **Eventbrite** (opcional): eventos de organizadores concretos. Requiere token de su API y
+  la lista de ids de organizadores.
+
+Configuración (una vez), en GitHub: **repo → Settings → Secrets and variables → Actions → New repository secret**:
+
+| Secreto | Valor |
+|---|---|
+| `SUPABASE_URL` | `https://TU-PROYECTO.supabase.co` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API Keys → `service_role` ⚠️ clave de administrador: solo aquí, jamás en la app |
+| `EVENTBRITE_TOKEN` | (opcional) token privado de eventbrite.com/platform |
+| `EVENTBRITE_ORGANIZER_IDS` | (opcional) ids separados por comas |
+
+Antes de nada, ejecuta [`supabase/migration-ingesta.sql`](supabase/migration-ingesta.sql) en el
+SQL Editor (añade estados borrador/publicado, fuente y destacados).
+
+Prueba local sin escribir en la base de datos: `DRY_RUN=1 node scripts/import-events.mjs`.
+Lanzamiento manual: pestaña **Actions** del repo → "Importar eventos" → *Run workflow*.
 
 ## Cómo añadir eventos (alternativa manual)
 

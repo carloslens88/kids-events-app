@@ -36,6 +36,7 @@ export const AGE_RANGES: AgeRange[] = [
   { id: '0-3', label: '0-3 años', min: 0, max: 3 },
   { id: '4-6', label: '4-6 años', min: 4, max: 6 },
   { id: '7-12', label: '7-12 años', min: 7, max: 12 },
+  { id: '13-17', label: '13-17 años', min: 13, max: 17 },
 ];
 
 // Calendario del evento: un día, varias fechas sueltas o temporada continua.
@@ -61,10 +62,14 @@ export type KidsEvent = {
   price_eur: number;
   image_url: string | null;
   source_url: string | null;
+  status: 'draft' | 'published';
+  source: string; // manual | madrid_opendata | eventbrite
+  external_id: string | null;
+  featured: boolean;
 };
 
 export function formatAges(event: Pick<KidsEvent, 'age_min' | 'age_max'>): string {
-  if (event.age_min <= 0 && event.age_max >= 12) return 'Todas las edades';
+  if (event.age_min <= 0 && event.age_max >= 16) return 'Todas las edades';
   return `${event.age_min}-${event.age_max} años`;
 }
 
@@ -121,6 +126,35 @@ export function formatSchedule(event: EventSchedule, now: Date = new Date()): st
     return `${formatEventDate(next.toISOString())}${extra}`;
   }
   return formatEventDate(event.starts_at);
+}
+
+// ¿El evento ocurre (alguna sesión o parte del rango) entre dos instantes?
+export function occursBetween(event: EventSchedule, from: Date, to: Date): boolean {
+  if (event.date_mode === 'range') {
+    return new Date(event.starts_at) <= to && new Date(event.ends_at ?? event.starts_at) >= from;
+  }
+  return eventDates(event).some((d) => d >= from && d <= to);
+}
+
+export function todayRange(now: Date = new Date()): [Date, Date] {
+  const start = new Date(now);
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 999);
+  return [start, end];
+}
+
+// El próximo fin de semana: si hoy es sábado o domingo, el actual (desde ahora).
+export function weekendRange(now: Date = new Date()): [Date, Date] {
+  const day = now.getDay(); // 0 = domingo, 6 = sábado
+  const start = new Date(now);
+  if (day !== 0 && day !== 6) {
+    start.setDate(start.getDate() + (6 - day));
+    start.setHours(0, 0, 0, 0);
+  }
+  const end = new Date(start);
+  end.setDate(end.getDate() + (end.getDay() === 6 ? 1 : 0)); // hasta el domingo
+  end.setHours(23, 59, 59, 999);
+  return [start, end];
 }
 
 // Líneas de fechas para la pantalla de detalle (una por fecha).

@@ -28,6 +28,12 @@ create table public.events (
   price_eur numeric(8, 2) not null default 0, -- 0 = gratis
   image_url text,
   source_url text, -- web oficial del evento / venta de entradas
+  -- Flujo de ingesta: los eventos importados entran como borrador y solo
+  -- aparecen en la app cuando el admin los publica.
+  status text not null default 'published' check (status in ('draft', 'published')),
+  source text not null default 'manual', -- manual | madrid_opendata | eventbrite
+  external_id text unique, -- id en la fuente externa (dedupe de importaciones)
+  featured boolean not null default false, -- destacado: arriba y con estrella
   created_at timestamptz not null default now()
 );
 
@@ -56,6 +62,7 @@ create trigger events_compute_last_date
 -- Índices para las consultas de la app (próximos eventos + filtros).
 create index events_starts_at_idx on public.events (starts_at);
 create index events_last_date_idx on public.events (last_date);
+create index events_status_idx on public.events (status);
 create index events_category_idx on public.events (category);
 create index events_city_idx on public.events (city);
 
@@ -64,7 +71,7 @@ create index events_city_idx on public.events (city);
 -- desde el dashboard de Supabase, que usa permisos de administrador.
 alter table public.events enable row level security;
 
-create policy "Lectura pública de eventos"
+create policy "Lectura pública de eventos publicados"
   on public.events for select
   to anon, authenticated
-  using (true);
+  using (status = 'published');

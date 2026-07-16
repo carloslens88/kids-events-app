@@ -3,22 +3,36 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Platform,
   RefreshControl,
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
 
 import { CityPicker } from '@/components/city-picker';
 import { EventCard } from '@/components/event-card';
-import { FilterBar } from '@/components/filter-bar';
+import { EventsMap } from '@/components/events-map';
+import { FilterBar, QuickFilter } from '@/components/filter-bar';
+import { KidsOnboarding } from '@/components/kids-onboarding';
 import { SetupNotice } from '@/components/setup-notice';
 import { colors } from '@/constants/theme';
 import { useCity } from '@/lib/city';
 import { useUserLocation } from '@/lib/geo';
+import { matchesKids, profileBands, useKidsProfile } from '@/lib/kids';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
-import { AgeRange, CategoryId, KidsEvent, nextOccurrence } from '@/lib/types';
+import {
+  AgeRange,
+  CategoryId,
+  KidsEvent,
+  nextOccurrence,
+  occursBetween,
+  todayRange,
+  weekendRange,
+} from '@/lib/types';
+import { rainWarning, useRainForecast } from '@/lib/weather';
 
 // Búsqueda sin distinguir mayúsculas ni acentos ("musica" encuentra "Música").
 const normalize = (text: string) =>
@@ -34,21 +48,26 @@ export default function EventsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState<CategoryId | null>(null);
   const [ageRange, setAgeRange] = useState<AgeRange | null>(null);
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>(null);
+  const [freeOnly, setFreeOnly] = useState(false);
   const [search, setSearch] = useState('');
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+  const [kidsFilterOn, setKidsFilterOn] = useState(true);
   const { city, setCity, cities } = useCity();
+  const { profile, loaded: profileLoaded, save: saveProfile } = useKidsProfile();
   const userCoords = useUserLocation();
 
   const fetchEvents = useCallback(async () => {
     setError(null);
-    // last_date >= ahora: incluye eventos de un día futuros, fechas múltiples
-    // con alguna sesión pendiente y temporadas (rangos) aún abiertas.
+    // last_date >= ahora: eventos de un día futuros, fechas múltiples con
+    // sesiones pendientes y temporadas abiertas. RLS ya oculta los borradores.
     let query = supabase
       .from('events')
       .select('*')
       .eq('city', city)
       .gte('last_date', new Date().toISOString())
       .order('starts_at', { ascending: true })
-      .limit(100);
+      .limit(200);
 
     if (category) query = query.eq('category', category);
     // Un evento encaja si su rango de edad se solapa con el filtro elegido.
@@ -70,24 +89,49 @@ export default function EventsScreen() {
     fetchEvents();
   }, [fetchEvents]);
 
+  // Pronóstico de lluvia para la ciudad (coordenadas del primer evento con lat/lng).
+  const cityCoords = useMemo(() => {
+    const located = events.find((e) => e.lat != null && e.lng != null);
+    return located ? { lat: located.lat!, lng: located.lng! } : null;
+  }, [events]);
+  const rain = useRainForecast(cityCoords);
+
+  const kidsBands = profileBands(profile);
+
   const visibleEvents = useMemo(() => {
     const now = new Date();
     const query = normalize(search.trim());
+    const dateWindow =
+      quickFilter === 'today' ? todayRange(now) : quickFilter === 'weekend' ? weekendRange(now) : null;
+
     return events
       .filter((event) => {
-        if (!query) return true;
-        const haystack = normalize(
-          [event.title, event.venue_name, event.description].filter(Boolean).join(' ')
-        );
-        return haystack.includes(query);
+        if (freeOnly && event.price_eur > 0) return false;
+        if (dateWindow && !occursBetween(event, dateWindow[0], dateWindow[1])) return false;
+        if (kidsFilterOn && kidsBands.length > 0 && !matchesKids(event, kidsBands)) return false;
+        if (query) {
+          const haystack = normalize(
+            [event.title, event.venue_name, event.description].filter(Boolean).join(' ')
+          );
+          if (!haystack.includes(query)) return false;
+        }
+        return true;
       })
-      .sort((a, b) => nextOccurrence(a, now).getTime() - nextOccurrence(b, now).getTime());
-  }, [events, search]);
+      .sort((a, b) => {
+        if (a.featured !== b.featured) return a.featured ? -1 : 1;
+        return nextOccurrence(a, now).getTime() - nextOccurrence(b, now).getTime();
+      });
+  }, [events, search, quickFilter, freeOnly, kidsFilterOn, kidsBands]);
 
   if (!isSupabaseConfigured) return <SetupNotice />;
 
   return (
     <View style={styles.container}>
+      <KidsOnboarding
+        visible={profileLoaded && profile === null}
+        onDone={(newProfile) => saveProfile(newProfile)}
+      />
+
       <View style={styles.cityRow}>
         <CityPicker city={city} cities={cities} onSelect={setCity} />
         <View style={styles.searchBox}>
@@ -101,13 +145,41 @@ export default function EventsScreen() {
             returnKeyType="search"
           />
         </View>
+        {Platform.OS !== 'web' ? (
+          <TouchableOpacity
+            style={styles.mapToggle}
+            onPress={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
+            hitSlop={8}
+          >
+            <Ionicons
+              name={viewMode === 'list' ? 'map-outline' : 'list-outline'}
+              size={20}
+              color={colors.primary}
+            />
+          </TouchableOpacity>
+        ) : null}
       </View>
+
       <FilterBar
+        quickFilter={quickFilter}
+        onQuickFilterChange={setQuickFilter}
+        freeOnly={freeOnly}
+        onFreeOnlyChange={setFreeOnly}
         category={category}
         onCategoryChange={setCategory}
         ageRange={ageRange}
         onAgeRangeChange={setAgeRange}
+        kidsChip={
+          kidsBands.length > 0
+            ? {
+                label: `Para mis peques${kidsFilterOn ? ' ✓' : ''}`,
+                active: kidsFilterOn,
+                onToggle: () => setKidsFilterOn(!kidsFilterOn),
+              }
+            : null
+        }
       />
+
       {loading ? (
         <ActivityIndicator style={styles.center} color={colors.primary} size="large" />
       ) : error ? (
@@ -116,11 +188,15 @@ export default function EventsScreen() {
           <Text style={styles.emptyTitle}>No se pudieron cargar los eventos</Text>
           <Text style={styles.emptyText}>{error}</Text>
         </View>
+      ) : viewMode === 'map' && Platform.OS !== 'web' ? (
+        <EventsMap events={visibleEvents} />
       ) : (
         <FlatList
           data={visibleEvents}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <EventCard event={item} userCoords={userCoords} />}
+          renderItem={({ item }) => (
+            <EventCard event={item} userCoords={userCoords} rainWarning={rainWarning(item, rain)} />
+          )}
           contentContainerStyle={styles.list}
           refreshControl={
             <RefreshControl
@@ -158,10 +234,21 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 999,
     paddingHorizontal: 12,
-    marginRight: 16,
+    marginRight: 12,
     height: 36,
   },
   searchInput: { flex: 1, fontSize: 14, color: colors.text, paddingVertical: 0 },
+  mapToggle: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
   list: { paddingTop: 4, paddingBottom: 24, flexGrow: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 6 },
   emptyEmoji: { fontSize: 40 },

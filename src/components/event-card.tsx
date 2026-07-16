@@ -9,9 +9,10 @@ import { formatAges, formatPrice, formatSchedule, getCategory, KidsEvent } from 
 type Props = {
   event: KidsEvent;
   userCoords: Coords | null;
+  rainWarning?: string | null;
 };
 
-export function EventCard({ event, userCoords }: Props) {
+export function EventCard({ event, userCoords, rainWarning }: Props) {
   const category = getCategory(event.category);
   const distance =
     userCoords && event.lat != null && event.lng != null
@@ -30,10 +31,13 @@ export function EventCard({ event, userCoords }: Props) {
         )}
         <View style={styles.body}>
           <View style={styles.topRow}>
-            <View style={[styles.categoryBadge, { backgroundColor: category.color + '22' }]}>
-              <Text style={[styles.categoryText, { color: category.color }]}>
-                {category.emoji} {category.label}
-              </Text>
+            <View style={styles.badgeGroup}>
+              {event.featured ? <Text style={styles.featuredStar}>⭐</Text> : null}
+              <View style={[styles.categoryBadge, { backgroundColor: category.color + '22' }]}>
+                <Text style={[styles.categoryText, { color: category.color }]}>
+                  {category.emoji} {category.label}
+                </Text>
+              </View>
             </View>
             <Text style={[styles.price, event.price_eur <= 0 && styles.priceFree]}>
               {formatPrice(event.price_eur)}
@@ -48,6 +52,7 @@ export function EventCard({ event, userCoords }: Props) {
             {distance != null ? `  ·  a ${formatDistance(distance)}` : ''}
           </Text>
           <Text style={styles.ages}>👶 {formatAges(event)}</Text>
+          {rainWarning ? <Text style={styles.rain}>{rainWarning}</Text> : null}
         </View>
       </Pressable>
     </Link>
@@ -70,6 +75,9 @@ const styles = StyleSheet.create({
   imageEmoji: { fontSize: 48 },
   body: { padding: 14, gap: 4 },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  badgeGroup: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  featuredStar: { fontSize: 14 },
+  rain: { fontSize: 13, color: '#2563EB', fontWeight: '600', marginTop: 2 },
   categoryBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   categoryText: { fontSize: 12, fontWeight: '700' },
   price: { fontSize: 14, fontWeight: '700', color: colors.text },
