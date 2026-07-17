@@ -12,7 +12,7 @@ export const colors = {
   secondarySoft: '#E0F5F3',
   accent: '#FFC94D',
   accentSoft: '#FFF3D6',
-  border: '#EFECE8',
+  border: '#E5E0D9',
   free: '#10B981',
   freeSoft: '#DDF5EC',
 };

@@ -228,6 +228,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     backgroundColor: colors.card,
+    borderWidth: 1.5,
+    borderColor: colors.border,
     borderRadius: radius.chip,
     paddingHorizontal: 14,
     height: 40,
