@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors } from '@/constants/theme';
+import { colors, fonts } from '@/constants/theme';
 
 // Se muestra cuando falta el archivo .env con las credenciales de Supabase,
 // para que el primer arranque explique qué hay que configurar.
@@ -21,6 +21,6 @@ export function SetupNotice() {
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 8 },
   emoji: { fontSize: 40 },
-  title: { fontSize: 18, fontWeight: '700', color: colors.text },
-  text: { fontSize: 14, color: colors.textMuted, textAlign: 'center', lineHeight: 21 },
+  title: { fontFamily: fonts.heading, fontSize: 18, color: colors.text },
+  text: { fontFamily: fonts.body, fontSize: 14, color: colors.textMuted, textAlign: 'center', lineHeight: 21 },
 });

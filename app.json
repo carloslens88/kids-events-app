@@ -54,7 +54,8 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 140
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,

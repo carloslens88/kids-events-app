@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-import { colors } from '@/constants/theme';
+import { colors, fonts, radius } from '@/constants/theme';
 import { KidsProfile } from '@/lib/kids';
 import { enableWeeklyReminder } from '@/lib/notifications';
 import { AGE_RANGES } from '@/lib/types';
@@ -105,14 +105,14 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.card,
-    borderRadius: 24,
+    borderRadius: radius.sheet,
     padding: 24,
     alignItems: 'center',
     gap: 10,
   },
   emoji: { fontSize: 40 },
-  title: { fontSize: 20, fontWeight: '800', color: colors.text, textAlign: 'center' },
-  subtitle: { fontSize: 14, color: colors.textMuted, textAlign: 'center', lineHeight: 20 },
+  title: { fontFamily: fonts.black, fontSize: 21, color: colors.text, textAlign: 'center' },
+  subtitle: { fontFamily: fonts.body, fontSize: 14, color: colors.textMuted, textAlign: 'center', lineHeight: 20 },
   bands: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginVertical: 8 },
   band: {
     borderRadius: 999,
@@ -123,17 +123,17 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   bandActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  bandText: { fontSize: 15, fontWeight: '700', color: colors.text },
+  bandText: { fontFamily: fonts.heading, fontSize: 15, color: colors.text },
   bandTextActive: { color: '#FFFFFF' },
   primaryButton: {
     width: '100%',
     backgroundColor: colors.primary,
-    borderRadius: 14,
+    borderRadius: radius.button,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 6,
   },
   buttonDisabled: { opacity: 0.4 },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  skip: { color: colors.textMuted, fontSize: 14, fontWeight: '600', padding: 6 },
+  primaryButtonText: { fontFamily: fonts.heading, color: '#FFFFFF', fontSize: 16 },
+  skip: { fontFamily: fonts.bold, color: colors.textMuted, fontSize: 14, padding: 6 },
 });

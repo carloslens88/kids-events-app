@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Platform,
   RefreshControl,
@@ -11,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CityPicker } from '@/components/city-picker';
 import { EventCard } from '@/components/event-card';
@@ -18,7 +18,8 @@ import { EventsMap } from '@/components/events-map';
 import { FilterBar, QuickFilter } from '@/components/filter-bar';
 import { KidsOnboarding } from '@/components/kids-onboarding';
 import { SetupNotice } from '@/components/setup-notice';
-import { colors } from '@/constants/theme';
+import { SkeletonCard } from '@/components/skeleton-card';
+import { colors, fonts, radius, softShadow } from '@/constants/theme';
 import { useCity } from '@/lib/city';
 import { useUserLocation } from '@/lib/geo';
 import { matchesKids, profileBands, useKidsProfile } from '@/lib/kids';
@@ -56,6 +57,7 @@ export default function EventsScreen() {
   const { city, setCity, cities } = useCity();
   const { profile, loaded: profileLoaded, save: saveProfile } = useKidsProfile();
   const userCoords = useUserLocation();
+  const insets = useSafeAreaInsets();
 
   const fetchEvents = useCallback(async () => {
     setError(null);
@@ -135,32 +137,38 @@ export default function EventsScreen() {
         onDone={(newProfile) => saveProfile(newProfile)}
       />
 
-      <View style={styles.cityRow}>
-        <CityPicker city={city} cities={cities} onSelect={setCity} />
-        <View style={styles.searchBox}>
-          <Ionicons name="search" size={16} color={colors.textMuted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Buscar…"
-            placeholderTextColor={colors.textMuted}
-            value={search}
-            onChangeText={setSearch}
-            returnKeyType="search"
-          />
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
+        <View style={styles.brandRow}>
+          <Text style={styles.brand}>Peque-Eventos 🎈</Text>
+          {Platform.OS !== 'web' ? (
+            <TouchableOpacity
+              style={styles.mapToggle}
+              onPress={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
+              hitSlop={8}
+            >
+              <Ionicons
+                name={viewMode === 'list' ? 'map' : 'list'}
+                size={19}
+                color={colors.primary}
+              />
+            </TouchableOpacity>
+          ) : null}
         </View>
-        {Platform.OS !== 'web' ? (
-          <TouchableOpacity
-            style={styles.mapToggle}
-            onPress={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
-            hitSlop={8}
-          >
-            <Ionicons
-              name={viewMode === 'list' ? 'map-outline' : 'list-outline'}
-              size={20}
-              color={colors.primary}
+        <Text style={styles.greeting}>¿Qué plan hacemos hoy?</Text>
+        <View style={styles.controlsRow}>
+          <CityPicker city={city} cities={cities} onSelect={setCity} />
+          <View style={styles.searchBox}>
+            <Ionicons name="search" size={16} color={colors.textMuted} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Buscar planes…"
+              placeholderTextColor={colors.textMuted}
+              value={search}
+              onChangeText={setSearch}
+              returnKeyType="search"
             />
-          </TouchableOpacity>
-        ) : null}
+          </View>
+        </View>
       </View>
 
       <FilterBar
@@ -184,7 +192,11 @@ export default function EventsScreen() {
       />
 
       {loading ? (
-        <ActivityIndicator style={styles.center} color={colors.primary} size="large" />
+        <View style={styles.list}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
       ) : error ? (
         <View style={styles.center}>
           <Text style={styles.emptyEmoji}>😕</Text>
@@ -226,35 +238,41 @@ export default function EventsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  cityRow: { paddingTop: 10, flexDirection: 'row', alignItems: 'center' },
+  header: { paddingHorizontal: 16, gap: 4 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  brand: { fontFamily: fonts.heading, fontSize: 14, color: colors.primary, letterSpacing: 0.3 },
+  greeting: { fontFamily: fonts.black, fontSize: 26, color: colors.text, marginBottom: 10 },
+  controlsRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   searchBox: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    marginRight: 12,
-    height: 36,
+    borderRadius: radius.chip,
+    paddingHorizontal: 14,
+    height: 40,
+    ...softShadow,
   },
-  searchInput: { flex: 1, fontSize: 14, color: colors.text, paddingVertical: 0 },
+  searchInput: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.text,
+    paddingVertical: 0,
+  },
   mapToggle: {
-    width: 36,
-    height: 36,
+    width: 38,
+    height: 38,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
     backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
+    ...softShadow,
   },
-  list: { paddingTop: 4, paddingBottom: 24, flexGrow: 1 },
+  list: { paddingTop: 4, paddingBottom: 28, flexGrow: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 6 },
-  emptyEmoji: { fontSize: 40 },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: colors.text, textAlign: 'center' },
-  emptyText: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },
+  emptyEmoji: { fontSize: 44 },
+  emptyTitle: { fontFamily: fonts.heading, fontSize: 17, color: colors.text, textAlign: 'center' },
+  emptyText: { fontFamily: fonts.body, fontSize: 14, color: colors.textMuted, textAlign: 'center' },
 });

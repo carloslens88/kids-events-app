@@ -3,7 +3,7 @@ import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-nativ
 
 import { EventCard } from '@/components/event-card';
 import { SetupNotice } from '@/components/setup-notice';
-import { colors } from '@/constants/theme';
+import { colors, fonts } from '@/constants/theme';
 import { useFavorites } from '@/lib/favorites';
 import { useUserLocation } from '@/lib/geo';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   list: { paddingTop: 12, paddingBottom: 24, flexGrow: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 6 },
-  emptyEmoji: { fontSize: 40 },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: colors.text, textAlign: 'center' },
-  emptyText: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },
+  emptyEmoji: { fontSize: 44 },
+  emptyTitle: { fontFamily: fonts.heading, fontSize: 17, color: colors.text, textAlign: 'center' },
+  emptyText: { fontFamily: fonts.body, fontSize: 14, color: colors.textMuted, textAlign: 'center' },
 });

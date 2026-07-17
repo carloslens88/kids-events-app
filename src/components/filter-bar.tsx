@@ -1,6 +1,6 @@
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-import { colors } from '@/constants/theme';
+import { colors, fonts, radius, softShadow } from '@/constants/theme';
 import { AGE_RANGES, AgeRange, CATEGORIES, CategoryId } from '@/lib/types';
 
 export type QuickFilter = 'today' | 'weekend' | null;
@@ -30,68 +30,67 @@ export function FilterBar({
 }: Props) {
   return (
     <View style={styles.container}>
+      {/* Filtros rápidos */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
         {kidsChip ? (
-          <TouchableOpacity
-            style={[styles.chip, styles.quickChip, kidsChip.active && styles.kidsChipActive]}
+          <Chip
+            label={`👶 ${kidsChip.label}`}
+            active={kidsChip.active}
+            activeColor={colors.accent}
+            activeTextColor="#5C4300"
             onPress={kidsChip.onToggle}
-          >
-            <Text style={[styles.chipText, kidsChip.active && styles.chipTextActive]}>
-              👶 {kidsChip.label}
-            </Text>
-          </TouchableOpacity>
+          />
         ) : null}
-        <TouchableOpacity
-          style={[styles.chip, styles.quickChip, quickFilter === 'today' && styles.quickChipActive]}
+        <Chip
+          label="☀️ Hoy"
+          active={quickFilter === 'today'}
+          activeColor={colors.primary}
           onPress={() => onQuickFilterChange(quickFilter === 'today' ? null : 'today')}
-        >
-          <Text style={[styles.chipText, quickFilter === 'today' && styles.chipTextActive]}>
-            ☀️ Hoy
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.chip, styles.quickChip, quickFilter === 'weekend' && styles.quickChipActive]}
+        />
+        <Chip
+          label="🎉 Este finde"
+          active={quickFilter === 'weekend'}
+          activeColor={colors.primary}
           onPress={() => onQuickFilterChange(quickFilter === 'weekend' ? null : 'weekend')}
-        >
-          <Text style={[styles.chipText, quickFilter === 'weekend' && styles.chipTextActive]}>
-            🎉 Este finde
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.chip, styles.quickChip, freeOnly && styles.freeChipActive]}
+        />
+        <Chip
+          label="🆓 Gratis"
+          active={freeOnly}
+          activeColor={colors.free}
           onPress={() => onFreeOnlyChange(!freeOnly)}
-        >
-          <Text style={[styles.chipText, freeOnly && styles.chipTextActive]}>🆓 Gratis</Text>
-        </TouchableOpacity>
+        />
+        {AGE_RANGES.map((r) => (
+          <Chip
+            key={r.id}
+            label={r.label}
+            active={ageRange?.id === r.id}
+            activeColor={colors.secondary}
+            onPress={() => onAgeRangeChange(ageRange?.id === r.id ? null : r)}
+          />
+        ))}
       </ScrollView>
 
+      {/* Categorías: fichas circulares de emoji */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
         {CATEGORIES.map((c) => {
           const active = category === c.id;
           return (
             <TouchableOpacity
               key={c.id}
-              style={[styles.chip, active && { backgroundColor: c.color, borderColor: c.color }]}
+              style={styles.categoryTile}
               onPress={() => onCategoryChange(active ? null : c.id)}
+              activeOpacity={0.8}
             >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                {c.emoji} {c.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-        {AGE_RANGES.map((r) => {
-          const active = ageRange?.id === r.id;
-          return (
-            <TouchableOpacity
-              key={r.id}
-              style={[styles.chip, active && styles.ageChipActive]}
-              onPress={() => onAgeRangeChange(active ? null : r)}
-            >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{r.label}</Text>
+              <View
+                style={[
+                  styles.categoryCircle,
+                  { backgroundColor: active ? c.color : c.color + '24' },
+                  active && styles.categoryCircleActive,
+                ]}
+              >
+                <Text style={styles.categoryEmoji}>{c.emoji}</Text>
+              </View>
+              <Text style={[styles.categoryLabel, active && { color: c.color }]}>{c.label}</Text>
             </TouchableOpacity>
           );
         })}
@@ -100,22 +99,57 @@ export function FilterBar({
   );
 }
 
+function Chip({
+  label,
+  active,
+  activeColor,
+  activeTextColor = '#FFFFFF',
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  activeColor: string;
+  activeTextColor?: string;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.chip, active && { backgroundColor: activeColor, borderColor: activeColor }]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <Text style={[styles.chipText, active && { color: activeTextColor }]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { gap: 8, paddingVertical: 10 },
-  row: { gap: 8, paddingHorizontal: 16 },
+  container: { gap: 12, paddingVertical: 12 },
+  row: { gap: 8, paddingHorizontal: 16, alignItems: 'flex-start' },
   chip: {
-    borderRadius: 999,
+    borderRadius: radius.chip,
     paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingVertical: 8,
     backgroundColor: colors.card,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
+    ...softShadow,
   },
-  quickChip: { borderColor: colors.primary + '55' },
-  quickChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  freeChipActive: { backgroundColor: colors.free, borderColor: colors.free },
-  kidsChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  ageChipActive: { backgroundColor: colors.secondary, borderColor: colors.secondary },
-  chipText: { fontSize: 13, fontWeight: '600', color: colors.text },
-  chipTextActive: { color: '#FFFFFF' },
+  chipText: { fontFamily: fonts.heading, fontSize: 13, color: colors.text },
+  categoryTile: { alignItems: 'center', width: 66 },
+  categoryCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryCircleActive: { transform: [{ scale: 1.06 }], ...softShadow },
+  categoryEmoji: { fontSize: 25 },
+  categoryLabel: {
+    fontFamily: fonts.heading,
+    fontSize: 11.5,
+    color: colors.textMuted,
+    marginTop: 5,
+  },
 });
