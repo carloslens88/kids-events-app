@@ -56,7 +56,10 @@
         }
       ],
       "expo-font",
-      "./plugins/with-no-push-entitlement.js"
+      "./plugins/with-no-push-entitlement.js",
+      "expo-image",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
