@@ -55,7 +55,8 @@
           "imageWidth": 140
         }
       ],
-      "expo-font"
+      "expo-font",
+      "./plugins/with-no-push-entitlement.js"
     ],
     "experiments": {
       "typedRoutes": true,
