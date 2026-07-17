@@ -13,7 +13,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CityPicker } from '@/components/city-picker';
 import { EventCard } from '@/components/event-card';
-import { EventsMap } from '@/components/events-map';
 import { FilterBar, QuickFilter } from '@/components/filter-bar';
 import { KidsOnboarding } from '@/components/kids-onboarding';
 import { SetupNotice } from '@/components/setup-notice';
@@ -51,7 +50,6 @@ export default function EventsScreen() {
   const [quickFilter, setQuickFilter] = useState<QuickFilter>(null);
   const [freeOnly, setFreeOnly] = useState(false);
   const [search, setSearch] = useState('');
-  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [kidsFilterOn, setKidsFilterOn] = useState(true);
   const { city, setCity, cities } = useCity();
   const { profile, loaded: profileLoaded, save: saveProfile } = useKidsProfile();
@@ -137,21 +135,7 @@ export default function EventsScreen() {
       />
 
       <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
-        <View style={styles.brandRow}>
-          <Text style={styles.brand}>Peque-Eventos 🎈</Text>
-          <TouchableOpacity
-            style={styles.mapToggle}
-            onPress={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
-            hitSlop={8}
-          >
-            <Ionicons
-              name={viewMode === 'list' ? 'map' : 'list'}
-              size={19}
-              color={colors.primary}
-            />
-            <Text style={styles.mapToggleText}>{viewMode === 'list' ? 'Mapa' : 'Lista'}</Text>
-          </TouchableOpacity>
-        </View>
+        <Text style={styles.brand}>Peque-Eventos 🎈</Text>
         <Text style={styles.greeting}>¿Qué plan hacemos hoy?</Text>
         <View style={styles.controlsRow}>
           <CityPicker city={city} cities={cities} onSelect={setCity} />
@@ -201,8 +185,6 @@ export default function EventsScreen() {
           <Text style={styles.emptyTitle}>No se pudieron cargar los eventos</Text>
           <Text style={styles.emptyText}>{error}</Text>
         </View>
-      ) : viewMode === 'map' ? (
-        <EventsMap events={visibleEvents} />
       ) : (
         <FlatList
           data={visibleEvents}
@@ -237,7 +219,6 @@ export default function EventsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: 16, gap: 4 },
-  brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brand: { fontFamily: fonts.heading, fontSize: 14, color: colors.primary, letterSpacing: 0.3 },
   greeting: { fontFamily: fonts.black, fontSize: 26, color: colors.text, marginBottom: 10 },
   controlsRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -259,18 +240,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     paddingVertical: 0,
   },
-  mapToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    height: 34,
-    paddingHorizontal: 13,
-    borderRadius: 999,
-    backgroundColor: colors.card,
-    ...softShadow,
-  },
-  mapToggleText: { fontFamily: fonts.heading, fontSize: 13, color: colors.primary },
   list: { paddingTop: 4, paddingBottom: 28, flexGrow: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 6 },
   emptyEmoji: { fontSize: 44 },

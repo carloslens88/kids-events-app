@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 
 // Sistema de diseño "Peque-Eventos": cálido, redondeado y con carácter.
 export const colors = {
-  background: '#FDF6EE',
+  background: '#FCFBFA',
   card: '#FFFFFF',
   text: '#2B2733',
   textMuted: '#918D9B',
@@ -12,7 +12,7 @@ export const colors = {
   secondarySoft: '#E0F5F3',
   accent: '#FFC94D',
   accentSoft: '#FFF3D6',
-  border: '#F2E9DE',
+  border: '#EFECE8',
   free: '#10B981',
   freeSoft: '#DDF5EC',
 };
