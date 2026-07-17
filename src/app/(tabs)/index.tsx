@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
-  Platform,
   RefreshControl,
   StyleSheet,
   Text,
@@ -140,19 +139,18 @@ export default function EventsScreen() {
       <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.brandRow}>
           <Text style={styles.brand}>Peque-Eventos 🎈</Text>
-          {Platform.OS !== 'web' ? (
-            <TouchableOpacity
-              style={styles.mapToggle}
-              onPress={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
-              hitSlop={8}
-            >
-              <Ionicons
-                name={viewMode === 'list' ? 'map' : 'list'}
-                size={19}
-                color={colors.primary}
-              />
-            </TouchableOpacity>
-          ) : null}
+          <TouchableOpacity
+            style={styles.mapToggle}
+            onPress={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
+            hitSlop={8}
+          >
+            <Ionicons
+              name={viewMode === 'list' ? 'map' : 'list'}
+              size={19}
+              color={colors.primary}
+            />
+            <Text style={styles.mapToggleText}>{viewMode === 'list' ? 'Mapa' : 'Lista'}</Text>
+          </TouchableOpacity>
         </View>
         <Text style={styles.greeting}>¿Qué plan hacemos hoy?</Text>
         <View style={styles.controlsRow}>
@@ -203,7 +201,7 @@ export default function EventsScreen() {
           <Text style={styles.emptyTitle}>No se pudieron cargar los eventos</Text>
           <Text style={styles.emptyText}>{error}</Text>
         </View>
-      ) : viewMode === 'map' && Platform.OS !== 'web' ? (
+      ) : viewMode === 'map' ? (
         <EventsMap events={visibleEvents} />
       ) : (
         <FlatList
@@ -262,14 +260,17 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   mapToggle: {
-    width: 38,
-    height: 38,
-    borderRadius: 999,
-    backgroundColor: colors.card,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 5,
+    height: 34,
+    paddingHorizontal: 13,
+    borderRadius: 999,
+    backgroundColor: colors.card,
     ...softShadow,
   },
+  mapToggleText: { fontFamily: fonts.heading, fontSize: 13, color: colors.primary },
   list: { paddingTop: 4, paddingBottom: 28, flexGrow: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 6 },
   emptyEmoji: { fontSize: 44 },
