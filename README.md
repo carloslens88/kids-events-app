@@ -80,6 +80,9 @@ supabase/
   admin.sql             # Permisos del admin + bucket de imágenes (ejecutar 1 vez)
   migration-fechas.sql  # Migración: fechas múltiples y temporadas (solo BD ya existentes)
   seed.sql              # Eventos de ejemplo en Madrid
+scripts/
+  import-events.mjs     # Importador diario (datos.madrid.es + Eventbrite)
+  cleanup-events.mjs    # Borra borradores caducados sin publicar (diario, con margen)
 ```
 
 ## Panel de administración (añadir eventos con foto)
@@ -97,6 +100,20 @@ La propia app incluye un panel en la ruta `/admin`, pensado para usarse desde el
 
 La seguridad real está en el servidor: las políticas RLS de Supabase solo aceptan
 escrituras de tu usuario, aunque alguien encuentre la ruta /admin en la app.
+
+**Extras del panel:**
+- **Pestaña "Caducados"**: los borradores cuya fecha ya pasó sin haberse publicado
+  desaparecen de las pestañas normales (no estorban en el trabajo diario) y se agrupan
+  en esta pestaña, con un botón para vaciarlos de golpe. Un job diario en GitHub Actions
+  ([scripts/cleanup-events.mjs](scripts/cleanup-events.mjs)) los borra automáticamente
+  de la base de datos pasados 7 días de margen, aunque no los toques a mano.
+- **Buscar en Google Imágenes**: al editar un evento, el botón abre una pestaña de Google
+  Imágenes con el título del evento. Copia la URL de la foto que te guste (clic derecho →
+  "Copiar dirección de la imagen") y pégala en el campo de debajo — más rápido que
+  descargar y subir un archivo. También puedes seguir subiendo un archivo desde tu equipo.
+- **Aviso de posible duplicado**: al crear un evento nuevo, si ya existe algo con un
+  título parecido en la misma ciudad (típico cuando el mismo evento llega importado de
+  dos fuentes distintas), te avisa antes de guardarlo — es solo un aviso, no bloquea.
 
 ## Web pública
 

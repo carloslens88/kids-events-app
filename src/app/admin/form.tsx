@@ -16,9 +16,17 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors } from '@/constants/theme';
-import { geocodeAddress, uploadEventImage } from '@/lib/admin';
+import {
+  confirmAction,
+  findPossibleDuplicate,
+  geocodeAddress,
+  openGoogleImageSearch,
+  uploadEventImage,
+} from '@/lib/admin';
 import { supabase } from '@/lib/supabase';
-import { CATEGORIES, CategoryId, DateMode, KidsEvent } from '@/lib/types';
+import { CATEGORIES, CategoryId, DateMode, formatEventDate, KidsEvent } from '@/lib/types';
+
+type Schedule = { starts_at: string; ends_at: string | null; extra_dates: string[] };
 
 const DATE_MODES: { id: DateMode; label: string; hint: string }[] = [
   { id: 'single', label: '📅 Un día', hint: 'El evento ocurre una sola vez' },
@@ -150,9 +158,7 @@ export default function EventForm() {
   };
 
   // Construye starts_at / ends_at / extra_dates según el modo de fechas.
-  const buildSchedule = ():
-    | { starts_at: string; ends_at: string | null; extra_dates: string[] }
-    | string => {
+  const buildSchedule = (): Schedule | string => {
     if (dateMode === 'range') {
       const start = new Date(`${rangeStart.trim()}T00:00`);
       const end = new Date(`${rangeEnd.trim()}T23:59`);
@@ -180,6 +186,24 @@ export default function EventForm() {
     const schedule = buildSchedule();
     if (typeof schedule === 'string') return setError(schedule);
 
+    // Solo al crear (no al editar) avisamos si ya existe algo parecido en la
+    // misma ciudad — típico cuando el mismo evento llega por dos fuentes
+    // distintas (Ayuntamiento + Eventbrite). Es un aviso, no un bloqueo.
+    if (!id) {
+      const duplicate = await findPossibleDuplicate(form.title, form.city);
+      if (duplicate) {
+        confirmAction(
+          'Posible evento duplicado',
+          `Ya existe "${duplicate.title}" (${formatEventDate(duplicate.starts_at)}) en ${form.city}. ¿Seguro que quieres crear este también?`,
+          () => performSave(schedule)
+        );
+        return;
+      }
+    }
+    await performSave(schedule);
+  };
+
+  const performSave = async (schedule: Schedule) => {
     setSaving(true);
     try {
       let imageUrl = form.image_url || null;
@@ -394,9 +418,34 @@ export default function EventForm() {
 
       <Field label="Foto">
         {previewUri ? <Image source={{ uri: previewUri }} style={styles.preview} contentFit="cover" /> : null}
+
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          onPress={() =>
+            openGoogleImageSearch(`${form.title || form.venue_name || 'evento infantil'} ${form.city}`)
+          }
+        >
+          <Text style={styles.secondaryButtonText}>🔍 Buscar en Google Imágenes</Text>
+        </TouchableOpacity>
+        <Text style={styles.hint}>
+          Se abre en una pestaña nueva. Clic derecho sobre la foto que te guste → "Copiar
+          dirección de la imagen" → pégala aquí abajo.
+        </Text>
+        <TextInput
+          style={styles.input}
+          value={form.image_url}
+          onChangeText={(text) => {
+            set('image_url')(text);
+            setPickedImage(null); // una URL pegada manda sobre un archivo elegido antes
+          }}
+          placeholder="https://… (URL de la imagen)"
+          placeholderTextColor={colors.textMuted}
+          autoCapitalize="none"
+        />
+
         <TouchableOpacity style={styles.secondaryButton} onPress={pickImage}>
           <Text style={styles.secondaryButtonText}>
-            {previewUri ? '🖼️ Cambiar foto' : '🖼️ Elegir foto'}
+            {pickedImage ? '🖼️ Cambiar archivo subido' : '🖼️ O sube un archivo desde tu dispositivo'}
           </Text>
         </TouchableOpacity>
       </Field>

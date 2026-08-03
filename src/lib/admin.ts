@@ -1,6 +1,15 @@
-import { Alert, Platform } from 'react-native';
+import { Alert, Linking, Platform } from 'react-native';
 
 import { supabase } from './supabase';
+
+// Sin acentos y en minúsculas, para comparar títulos sin depender del formato.
+export function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .trim();
+}
 
 // Confirmación que funciona igual en web (window.confirm) y en móvil (Alert).
 export function confirmAction(title: string, message: string, onConfirm: () => void) {
@@ -26,6 +35,42 @@ export async function geocodeAddress(
   const results = (await response.json()) as { lat: string; lon: string }[];
   if (!results[0]) return null;
   return { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) };
+}
+
+// Abre una búsqueda de Google Imágenes en una pestaña nueva. No hay API de
+// por medio (evita crear claves nuevas de Google Cloud a dos días de la
+// publicación): el admin busca, copia la URL de la foto que le guste y la
+// pega en el formulario.
+export function openGoogleImageSearch(query: string) {
+  const url = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`;
+  Linking.openURL(url);
+}
+
+// Evento ya existente en la misma ciudad con un título parecido: ayuda a
+// detectar duplicados cuando el mismo evento llega importado desde dos
+// fuentes distintas (Ayuntamiento + Eventbrite, por ejemplo).
+export async function findPossibleDuplicate(
+  title: string,
+  city: string
+): Promise<{ title: string; starts_at: string } | null> {
+  const normalizedTitle = normalizeText(title);
+  if (normalizedTitle.length < 4) return null;
+
+  const { data } = await supabase
+    .from('events')
+    .select('title,starts_at')
+    .eq('city', city)
+    .limit(300);
+
+  const match = (data ?? []).find((event) => {
+    const other = normalizeText(event.title);
+    return (
+      other === normalizedTitle ||
+      other.includes(normalizedTitle) ||
+      normalizedTitle.includes(other)
+    );
+  });
+  return match ?? null;
 }
 
 // Sube una imagen elegida con expo-image-picker al bucket event-images y

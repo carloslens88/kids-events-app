@@ -15,13 +15,20 @@ import { confirmAction } from '@/lib/admin';
 import { supabase } from '@/lib/supabase';
 import { formatSchedule, getCategory, KidsEvent } from '@/lib/types';
 
-type StatusFilter = 'draft' | 'published' | 'all';
+type StatusFilter = 'draft' | 'published' | 'all' | 'expired';
 
 const SOURCE_LABELS: Record<string, string> = {
   manual: 'Manual',
   madrid_opendata: 'Ayto. Madrid',
   eventbrite: 'Eventbrite',
 };
+
+// Borrador cuya fecha ya pasó y que nunca se publicó: no tiene sentido
+// seguir mostrándolo en el trabajo diario, así que se aparta a su propia
+// pestaña en vez de aparecer entre los pendientes de revisar.
+function isExpiredDraft(event: KidsEvent): boolean {
+  return event.status === 'draft' && new Date(event.last_date ?? event.starts_at) < new Date();
+}
 
 export default function AdminEventList() {
   const [events, setEvents] = useState<KidsEvent[]>([]);
@@ -39,23 +46,41 @@ export default function AdminEventList() {
 
   useFocusEffect(fetchAll);
 
-  const counts = useMemo(
-    () => ({
-      draft: events.filter((e) => e.status === 'draft').length,
-      published: events.filter((e) => e.status === 'published').length,
-    }),
-    [events]
-  );
+  const counts = useMemo(() => {
+    const active = events.filter((e) => !isExpiredDraft(e));
+    return {
+      draft: active.filter((e) => e.status === 'draft').length,
+      published: active.filter((e) => e.status === 'published').length,
+      expired: events.filter(isExpiredDraft).length,
+    };
+  }, [events]);
 
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
     return events.filter((event) => {
-      if (statusFilter !== 'all' && event.status !== statusFilter) return false;
+      const expired = isExpiredDraft(event);
+      if (statusFilter === 'expired') {
+        if (!expired) return false;
+      } else {
+        if (expired) return false; // los caducados solo se ven en su propia pestaña
+        if (statusFilter !== 'all' && event.status !== statusFilter) return false;
+      }
       if (query && !`${event.title} ${event.venue_name ?? ''}`.toLowerCase().includes(query))
         return false;
       return true;
     });
   }, [events, statusFilter, search]);
+
+  const deleteExpired = () => {
+    confirmAction(
+      'Vaciar caducados',
+      `Se borrarán definitivamente ${visible.length} borradores caducados. Esta acción no se puede deshacer.`,
+      async () => {
+        await supabase.from('events').delete().in('id', visible.map((e) => e.id));
+        fetchAll();
+      }
+    );
+  };
 
   const setEventFields = async (id: string, fields: Partial<KidsEvent>) => {
     await supabase.from('events').update(fields).eq('id', id);
@@ -96,6 +121,7 @@ export default function AdminEventList() {
             ['draft', `Borradores (${counts.draft})`],
             ['published', `Publicados (${counts.published})`],
             ['all', 'Todos'],
+            ['expired', `Caducados (${counts.expired})`],
           ] as [StatusFilter, string][]
         ).map(([value, label]) => (
           <TouchableOpacity
@@ -111,6 +137,13 @@ export default function AdminEventList() {
           </TouchableOpacity>
         ))}
       </View>
+
+      {statusFilter === 'expired' && visible.length > 0 ? (
+        <TouchableOpacity style={styles.cleanupButton} onPress={deleteExpired}>
+          <Ionicons name="trash" size={16} color="#FFFFFF" />
+          <Text style={styles.cleanupButtonText}>Vaciar {visible.length} caducados ahora</Text>
+        </TouchableOpacity>
+      ) : null}
 
       <FlatList
         data={visible}
@@ -181,7 +214,9 @@ export default function AdminEventList() {
           <Text style={styles.empty}>
             {statusFilter === 'draft'
               ? 'No hay borradores pendientes. El importador diario los irá trayendo aquí.'
-              : 'Nada por aquí.'}
+              : statusFilter === 'expired'
+                ? '🎉 No hay caducados que limpiar por ahora.'
+                : 'Nada por aquí.'}
           </Text>
         }
       />
@@ -231,6 +266,18 @@ const styles = StyleSheet.create({
   statusChipActive: { backgroundColor: colors.secondary, borderColor: colors.secondary },
   statusChipText: { fontSize: 13, fontWeight: '600', color: colors.text },
   statusChipTextActive: { color: '#FFFFFF' },
+  cleanupButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 10,
+    marginHorizontal: 16,
+    marginBottom: 10,
+  },
+  cleanupButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
   list: { paddingHorizontal: 16, paddingBottom: 24, gap: 8 },
   row: {
     flexDirection: 'row',

@@ -1,5 +1,7 @@
 # Importa eventos infantiles cada madrugada y los deja como borradores
 # en Supabase para que el admin los revise y publique desde /admin.
+# Después limpia los borradores caducados (nunca publicados) para no
+# acumular basura en la base de datos.
 name: Importar eventos
 
 on:
@@ -22,3 +24,8 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           EVENTBRITE_TOKEN: ${{ secrets.EVENTBRITE_TOKEN }}
           EVENTBRITE_ORGANIZER_IDS: ${{ secrets.EVENTBRITE_ORGANIZER_IDS }}
+      - name: Limpiar borradores caducados sin publicar
+        run: node scripts/cleanup-events.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
