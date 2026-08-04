@@ -34,6 +34,7 @@ export default function AdminEventList() {
   const [events, setEvents] = useState<KidsEvent[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('draft');
   const [search, setSearch] = useState('');
+  const [hidePast, setHidePast] = useState(true);
 
   const fetchAll = useCallback(() => {
     // El admin ve todo: borradores, publicados y pasados.
@@ -47,16 +48,22 @@ export default function AdminEventList() {
   useFocusEffect(fetchAll);
 
   const counts = useMemo(() => {
-    const active = events.filter((e) => !isExpiredDraft(e));
+    const now = new Date();
+    const relevant = events.filter((e) => {
+      if (isExpiredDraft(e)) return false;
+      if (hidePast && new Date(e.last_date ?? e.starts_at) < now) return false;
+      return true;
+    });
     return {
-      draft: active.filter((e) => e.status === 'draft').length,
-      published: active.filter((e) => e.status === 'published').length,
+      draft: relevant.filter((e) => e.status === 'draft').length,
+      published: relevant.filter((e) => e.status === 'published').length,
       expired: events.filter(isExpiredDraft).length,
     };
-  }, [events]);
+  }, [events, hidePast]);
 
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
+    const now = new Date();
     return events.filter((event) => {
       const expired = isExpiredDraft(event);
       if (statusFilter === 'expired') {
@@ -64,12 +71,13 @@ export default function AdminEventList() {
       } else {
         if (expired) return false; // los caducados solo se ven en su propia pestaña
         if (statusFilter !== 'all' && event.status !== statusFilter) return false;
+        if (hidePast && new Date(event.last_date ?? event.starts_at) < now) return false;
       }
       if (query && !`${event.title} ${event.venue_name ?? ''}`.toLowerCase().includes(query))
         return false;
       return true;
     });
-  }, [events, statusFilter, search]);
+  }, [events, statusFilter, search, hidePast]);
 
   const deleteExpired = () => {
     confirmAction(
@@ -137,6 +145,17 @@ export default function AdminEventList() {
           </TouchableOpacity>
         ))}
       </View>
+
+      {statusFilter !== 'expired' ? (
+        <TouchableOpacity style={styles.toggleRow} onPress={() => setHidePast(!hidePast)}>
+          <Ionicons
+            name={hidePast ? 'checkbox' : 'square-outline'}
+            size={18}
+            color={colors.secondary}
+          />
+          <Text style={styles.toggleLabel}>Ocultar eventos pasados</Text>
+        </TouchableOpacity>
+      ) : null}
 
       {statusFilter === 'expired' && visible.length > 0 ? (
         <TouchableOpacity style={styles.cleanupButton} onPress={deleteExpired}>
@@ -216,7 +235,9 @@ export default function AdminEventList() {
               ? 'No hay borradores pendientes. El importador diario los irá trayendo aquí.'
               : statusFilter === 'expired'
                 ? '🎉 No hay caducados que limpiar por ahora.'
-                : 'Nada por aquí.'}
+                : hidePast
+                  ? 'Nada próximo por aquí. Prueba a desactivar "Ocultar eventos pasados".'
+                  : 'Nada por aquí.'}
           </Text>
         }
       />
@@ -266,6 +287,14 @@ const styles = StyleSheet.create({
   statusChipActive: { backgroundColor: colors.secondary, borderColor: colors.secondary },
   statusChipText: { fontSize: 13, fontWeight: '600', color: colors.text },
   statusChipTextActive: { color: '#FFFFFF' },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+  },
+  toggleLabel: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
   cleanupButton: {
     flexDirection: 'row',
     alignItems: 'center',
