@@ -19,7 +19,14 @@ import { cardShadow, colors, fonts, radius } from '@/constants/theme';
 import { useFavorites } from '@/lib/favorites';
 import { addToCalendar, shareEvent } from '@/lib/share';
 import { supabase } from '@/lib/supabase';
-import { formatAges, formatPrice, formatScheduleLines, getCategory, KidsEvent } from '@/lib/types';
+import {
+  formatAges,
+  formatDuration,
+  formatPrice,
+  formatScheduleLines,
+  getCategory,
+  KidsEvent,
+} from '@/lib/types';
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -52,6 +59,7 @@ export default function EventDetailScreen() {
 
   const category = getCategory(event.category);
   const isFavorite = favoriteIds.includes(event.id);
+  const duration = formatDuration(event.duration_minutes);
 
   const openMaps = () => {
     const label = encodeURIComponent(event.venue_name ?? event.title);
@@ -115,6 +123,11 @@ export default function EventDetailScreen() {
                 {formatPrice(event.price_eur)}
               </Text>
             </View>
+            {duration ? (
+              <View style={[styles.pill, styles.pillSoft]}>
+                <Text style={styles.pillTextDark}>⏱️ {duration}</Text>
+              </View>
+            ) : null}
           </View>
 
           <Text style={styles.title}>{event.title}</Text>

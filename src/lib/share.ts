@@ -1,5 +1,10 @@
-import * as ExpoCalendar from 'expo-calendar';
-import { Linking, Platform, Share } from 'react-native';
+// OJO: 'expo-calendar' (sin /legacy) expone estas mismas funciones como
+// stubs que SIEMPRE lanzan una excepción en tiempo de ejecución (para forzar
+// la migración a su nueva API orientada a objetos) — de ahí que el botón
+// "Al calendario" no hiciera nada: la promesa fallaba en silencio sin que lo
+// capturáramos. La API real y funcional vive en 'expo-calendar/legacy'.
+import * as ExpoCalendar from 'expo-calendar/legacy';
+import { Alert, Linking, Platform, Share } from 'react-native';
 
 import {
   formatAges,
@@ -36,7 +41,8 @@ export async function addToCalendar(event: KidsEvent) {
     startDate.setDate(startDate.getDate() + 1);
     startDate.setHours(11, 0, 0, 0);
   }
-  const endDate = new Date(startDate.getTime() + 2 * 60 * 60 * 1000);
+  const durationMinutes = event.duration_minutes ?? 120;
+  const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
   const location = [event.venue_name, event.address, event.city].filter(Boolean).join(', ');
 
   if (Platform.OS === 'web') {
@@ -51,11 +57,18 @@ export async function addToCalendar(event: KidsEvent) {
     return;
   }
 
-  await ExpoCalendar.createEventInCalendarAsync({
-    title: event.title,
-    startDate,
-    endDate,
-    location,
-    notes: event.description ?? undefined,
-  });
+  try {
+    await ExpoCalendar.createEventInCalendarAsync({
+      title: event.title,
+      startDate,
+      endDate,
+      location,
+      notes: event.description ?? undefined,
+    });
+  } catch {
+    Alert.alert(
+      'No se pudo abrir el calendario',
+      'Comprueba que tienes una app de calendario instalada e inténtalo de nuevo.'
+    );
+  }
 }

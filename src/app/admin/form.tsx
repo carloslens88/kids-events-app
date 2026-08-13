@@ -46,6 +46,7 @@ type FormState = {
   lat: string;
   lng: string;
   price_eur: string;
+  duration_minutes: string;
   source_url: string;
   image_url: string;
 };
@@ -62,6 +63,7 @@ const EMPTY: FormState = {
   lat: '',
   lng: '',
   price_eur: '0',
+  duration_minutes: '',
   source_url: '',
   image_url: '',
 };
@@ -122,6 +124,7 @@ export default function EventForm() {
           lat: event.lat != null ? String(event.lat) : '',
           lng: event.lng != null ? String(event.lng) : '',
           price_eur: String(event.price_eur),
+          duration_minutes: event.duration_minutes != null ? String(event.duration_minutes) : '',
           source_url: event.source_url ?? '',
           image_url: event.image_url ?? '',
         });
@@ -225,6 +228,7 @@ export default function EventForm() {
         lat: form.lat ? parseFloat(form.lat.replace(',', '.')) : null,
         lng: form.lng ? parseFloat(form.lng.replace(',', '.')) : null,
         price_eur: parseFloat(form.price_eur.replace(',', '.')) || 0,
+        duration_minutes: form.duration_minutes ? parseInt(form.duration_minutes, 10) || null : null,
         source_url: form.source_url.trim() || null,
         image_url: imageUrl,
       };
@@ -396,14 +400,26 @@ export default function EventForm() {
         </Text>
       </TouchableOpacity>
 
-      <Field label="Precio en € (0 = gratis)">
-        <TextInput
-          style={styles.input}
-          value={form.price_eur}
-          onChangeText={set('price_eur')}
-          keyboardType="decimal-pad"
-        />
-      </Field>
+      <View style={styles.rowFields}>
+        <Field label="Precio en € (0 = gratis)" style={styles.half}>
+          <TextInput
+            style={styles.input}
+            value={form.price_eur}
+            onChangeText={set('price_eur')}
+            keyboardType="decimal-pad"
+          />
+        </Field>
+        <Field label="Duración aprox. (minutos)" style={styles.half}>
+          <TextInput
+            style={styles.input}
+            value={form.duration_minutes}
+            onChangeText={set('duration_minutes')}
+            keyboardType="number-pad"
+            placeholder="ej. 60"
+            placeholderTextColor={colors.textMuted}
+          />
+        </Field>
+      </View>
 
       <Field label="Web del evento / entradas">
         <TextInput

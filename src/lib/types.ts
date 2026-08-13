@@ -60,6 +60,7 @@ export type KidsEvent = {
   lat: number | null;
   lng: number | null;
   price_eur: number;
+  duration_minutes: number | null;
   image_url: string | null;
   source_url: string | null;
   status: 'draft' | 'published';
@@ -76,6 +77,15 @@ export function formatAges(event: Pick<KidsEvent, 'age_min' | 'age_max'>): strin
 export function formatPrice(priceEur: number): string {
   if (!priceEur || priceEur <= 0) return 'Gratis';
   return `${priceEur.toLocaleString('es-ES', { maximumFractionDigits: 2 })} €`;
+}
+
+export function formatDuration(minutes: number | null): string | null {
+  if (!minutes || minutes <= 0) return null;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours === 0) return `${rest} min`;
+  if (rest === 0) return `${hours} h`;
+  return `${hours} h ${rest} min`;
 }
 
 export function formatEventDate(isoDate: string): string {
@@ -110,6 +120,22 @@ export function nextOccurrence(event: EventSchedule, now: Date = new Date()): Da
 }
 
 const formatShortDay = (d: Date) => d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+
+// Etiqueta corta de "cuándo" para la tarjeta: Hoy / Mañana / En 3 días.
+// null si ya queda demasiado lejos para que el aviso aporte algo (>7 días).
+export function relativeDayLabel(event: EventSchedule, now: Date = new Date()): string | null {
+  const next = nextOccurrence(event, now);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfNext = new Date(next.getFullYear(), next.getMonth(), next.getDate());
+  const diffDays = Math.round((startOfNext.getTime() - startOfToday.getTime()) / 86400000);
+
+  if (event.date_mode === 'range' && next <= now) return 'Abierto ahora';
+  if (diffDays < 0) return null;
+  if (diffDays === 0) return 'Hoy';
+  if (diffDays === 1) return 'Mañana';
+  if (diffDays <= 7) return `En ${diffDays} días`;
+  return null;
+}
 
 // Texto de fechas para la tarjeta del listado.
 export function formatSchedule(event: EventSchedule, now: Date = new Date()): string {

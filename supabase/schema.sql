@@ -26,6 +26,7 @@ create table public.events (
   lat double precision,
   lng double precision,
   price_eur numeric(8, 2) not null default 0, -- 0 = gratis
+  duration_minutes integer, -- duración aproximada, opcional
   image_url text,
   source_url text, -- web oficial del evento / venta de entradas
   -- Flujo de ingesta: los eventos importados entran como borrador y solo

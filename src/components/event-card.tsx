@@ -7,11 +7,13 @@ import { cardShadow, colors, fonts, radius } from '@/constants/theme';
 import { Coords, distanceKm, formatDistance } from '@/lib/geo';
 import {
   formatAges,
+  formatDuration,
   formatPrice,
   formatSchedule,
   getCategory,
   KidsEvent,
   nextOccurrence,
+  relativeDayLabel,
 } from '@/lib/types';
 
 type Props = {
@@ -35,6 +37,10 @@ export function EventCard({ event, userCoords, rainWarning }: Props) {
   const dateMonth = next
     .toLocaleDateString('es-ES', { month: 'short' })
     .replace('.', '');
+  const duration = formatDuration(event.duration_minutes);
+  // Solo destacamos lo realmente inminente para no saturar la tarjeta.
+  const urgentLabel = relativeDayLabel(event);
+  const showUrgent = urgentLabel === 'Hoy' || urgentLabel === 'Mañana' || urgentLabel === 'Abierto ahora';
 
   return (
     <Link href={{ pathname: '/event/[id]', params: { id: event.id } }} asChild>
@@ -57,6 +63,11 @@ export function EventCard({ event, userCoords, rainWarning }: Props) {
             <Text style={styles.dateDay}>{dateDay}</Text>
             <Text style={styles.dateMonth}>{dateMonth}</Text>
           </View>
+          {showUrgent ? (
+            <View style={styles.urgentBadge}>
+              <Text style={styles.urgentText}>{urgentLabel}</Text>
+            </View>
+          ) : null}
 
           {event.featured ? (
             <View style={styles.featuredBadge}>
@@ -88,6 +99,11 @@ export function EventCard({ event, userCoords, rainWarning }: Props) {
             <View style={styles.agePill}>
               <Text style={styles.agePillText}>👶 {formatAges(event)}</Text>
             </View>
+            {duration ? (
+              <View style={styles.durationPill}>
+                <Text style={styles.durationPillText}>⏱️ {duration}</Text>
+              </View>
+            ) : null}
             {rainWarning ? <Text style={styles.rain}>{rainWarning}</Text> : null}
           </View>
         </View>
@@ -129,6 +145,22 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  urgentBadge: {
+    position: 'absolute',
+    top: 60,
+    left: 12,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  urgentText: {
+    fontFamily: fonts.heading,
+    fontSize: 10,
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   featuredBadge: {
     position: 'absolute',
@@ -172,5 +204,12 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   agePillText: { fontFamily: fonts.heading, fontSize: 12, color: colors.primary },
+  durationPill: {
+    backgroundColor: colors.secondarySoft,
+    borderRadius: radius.chip,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  durationPillText: { fontFamily: fonts.heading, fontSize: 12, color: colors.secondary },
   rain: { fontFamily: fonts.heading, fontSize: 12.5, color: '#2563EB' },
 });

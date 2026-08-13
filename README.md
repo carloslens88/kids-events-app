@@ -79,6 +79,7 @@ supabase/
   schema.sql            # Esquema de la base de datos (ejecutar 1 vez, instalación nueva)
   admin.sql             # Permisos del admin + bucket de imágenes (ejecutar 1 vez)
   migration-fechas.sql  # Migración: fechas múltiples y temporadas (solo BD ya existentes)
+  migration-duracion.sql # Migración: duración aproximada del evento en minutos (opcional)
   seed.sql              # Eventos de ejemplo en Madrid
 scripts/
   import-events.mjs     # Importador diario (datos.madrid.es + Eventbrite)
