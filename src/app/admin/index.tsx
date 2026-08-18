@@ -165,6 +165,7 @@ export default function AdminEventList() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
+          style={styles.cityScroll}
           contentContainerStyle={styles.cityRow}
         >
           <TouchableOpacity
@@ -330,7 +331,8 @@ const styles = StyleSheet.create({
   statusChipActive: { backgroundColor: colors.secondary, borderColor: colors.secondary },
   statusChipText: { fontSize: 13, fontWeight: '600', color: colors.text },
   statusChipTextActive: { color: '#FFFFFF' },
-  cityRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
+  cityScroll: { flexGrow: 0, height: 44 },
+  cityRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
   cityChip: {
     borderRadius: 999,
     paddingHorizontal: 12,
