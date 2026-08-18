@@ -21,6 +21,7 @@ export function useCity() {
     supabase
       .from('events')
       .select('city')
+      .eq('status', 'published')
       .then(({ data }) => {
         if (!data || data.length === 0) return;
         const unique = [...new Set(data.map((row) => row.city as string))].sort();
