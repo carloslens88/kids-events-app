@@ -173,6 +173,14 @@ function stripHtml(html) {
 async function fetchBarcelonaEvents() {
   const response = await fetch(BARCELONA_FEED, { redirect: 'follow' });
   if (!response.ok) throw new Error(`Open Data BCN HTTP ${response.status}`);
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.includes('json')) {
+    // El portal sirve una página de verificación anti-bots (BunkerWeb/hCaptcha)
+    // ante tráfico de centros de datos como GitHub Actions, en vez del JSON.
+    throw new Error(
+      `respuesta no-JSON (${contentType || 'sin content-type'}); probable bloqueo anti-bots por IP`
+    );
+  }
   const data = await response.json();
   const rows = [];
 
@@ -551,13 +559,24 @@ async function insertDrafts(rows) {
   return inserted.length;
 }
 
-const madrid = await fetchMadridEvents();
+// Cada fuente es independiente: si una falla (red, cambio de formato, un
+// bloqueo anti-bots, etc.) no debe impedir que las demás se importen.
+async function fetchSafely(label, fn) {
+  try {
+    return await fn();
+  } catch (error) {
+    console.error(`⚠️  ${label} falló, se omite esta vez: ${error.message}`);
+    return [];
+  }
+}
+
+const madrid = await fetchSafely('datos.madrid.es', fetchMadridEvents);
 console.log(`datos.madrid.es: ${madrid.length} eventos infantiles/familiares en ventana de ${HORIZON_DAYS} días`);
-const eventbrite = await fetchEventbriteEvents();
+const eventbrite = await fetchSafely('Eventbrite', fetchEventbriteEvents);
 if (eventbrite.length) console.log(`Eventbrite: ${eventbrite.length} eventos en ventana`);
-const barcelona = await fetchBarcelonaEvents();
+const barcelona = await fetchSafely('Open Data BCN', fetchBarcelonaEvents);
 console.log(`Open Data BCN: ${barcelona.length} eventos infantiles/familiares en ventana`);
-const malaga = await fetchMalagaEvents();
+const malaga = await fetchSafely('Datos Abiertos Málaga', fetchMalagaEvents);
 console.log(`Datos Abiertos Málaga: ${malaga.length} eventos infantiles/familiares en ventana`);
 
 const allRows = [...madrid, ...eventbrite, ...barcelona, ...malaga];
