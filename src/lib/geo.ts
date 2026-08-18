@@ -44,11 +44,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
 // girando eternamente.
 export async function requestUserLocation(): Promise<Coords | null> {
   try {
-    const permission = await withTimeout(Location.requestForegroundPermissionsAsync(), 10000);
+    const permission = await withTimeout(Location.requestForegroundPermissionsAsync(), 6000);
     if (!permission || permission.status !== 'granted') return null;
     const position = await withTimeout(
       Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
-      10000
+      6000
     );
     if (!position) return null;
     return { latitude: position.coords.latitude, longitude: position.coords.longitude };

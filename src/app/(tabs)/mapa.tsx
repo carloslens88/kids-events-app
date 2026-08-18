@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EventsMap } from '@/components/events-map';
@@ -42,10 +42,12 @@ export default function MapScreen() {
     const coords = await requestUserLocation();
     setLocating(false);
     if (!coords) {
-      Alert.alert(
-        'Sin acceso a tu ubicación',
-        'Activa el permiso de ubicación para esta app en los ajustes de tu dispositivo.'
-      );
+      // Alert.alert no muestra nada en web (lección ya aprendida en el
+      // panel de admin con confirmAction): ahí usamos window.alert.
+      const message =
+        'No hemos podido acceder a tu ubicación. Comprueba el permiso de ubicación para esta app (o para este sitio, en el navegador) y que la ubicación esté activada en el dispositivo.';
+      if (Platform.OS === 'web') window.alert(message);
+      else Alert.alert('Sin acceso a tu ubicación', message);
       return;
     }
     setCenterOn({ lat: coords.latitude, lng: coords.longitude });
