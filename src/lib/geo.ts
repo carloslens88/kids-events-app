@@ -31,6 +31,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
   ]);
 }
 
+export type LocationResult = { ok: true; coords: Coords } | { ok: false; error: string };
+
 // Pide permiso y devuelve la ubicación una vez, bajo demanda (p. ej. al
 // pulsar un botón "mi ubicación"). A diferencia de useUserLocation, no se
 // dispara solo en segundo plano: el permiso se pide como reacción directa a
@@ -39,21 +41,31 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
 // La implementación web de expo-location tiene un fallo conocido: si el
 // usuario deniega el permiso desde el diálogo nativo del navegador, su
 // promesa interna no se resuelve ni falla — se queda colgada para siempre.
-// Por eso todo va envuelto en un timeout de seguridad: si en 10s no hay
-// respuesta, se trata como "sin ubicación" en vez de dejar el botón
-// girando eternamente.
-export async function requestUserLocation(): Promise<Coords | null> {
+// Por eso todo va envuelto en un timeout de seguridad: si en 6s no hay
+// respuesta, se trata como fallo en vez de dejar el botón girando
+// eternamente. Devuelve el motivo exacto (mensaje del navegador/SO) para
+// poder mostrarlo y diagnosticar, en vez de un genérico "no se pudo".
+export async function requestUserLocation(): Promise<LocationResult> {
   try {
     const permission = await withTimeout(Location.requestForegroundPermissionsAsync(), 6000);
-    if (!permission || permission.status !== 'granted') return null;
+    if (!permission) {
+      return { ok: false, error: 'El sistema no respondió a la solicitud de permiso (timeout)' };
+    }
+    if (permission.status !== 'granted') {
+      return { ok: false, error: `Permiso no concedido (estado: ${permission.status})` };
+    }
     const position = await withTimeout(
       Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
       6000
     );
-    if (!position) return null;
-    return { latitude: position.coords.latitude, longitude: position.coords.longitude };
-  } catch {
-    return null;
+    if (!position) return { ok: false, error: 'El dispositivo no respondió con tu posición (timeout)' };
+    return {
+      ok: true,
+      coords: { latitude: position.coords.latitude, longitude: position.coords.longitude },
+    };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: message || 'Error desconocido' };
   }
 }
 

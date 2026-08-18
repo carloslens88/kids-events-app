@@ -39,18 +39,17 @@ export default function MapScreen() {
 
   const handleLocate = async () => {
     setLocating(true);
-    const coords = await requestUserLocation();
+    const result = await requestUserLocation();
     setLocating(false);
-    if (!coords) {
+    if (!result.ok) {
       // Alert.alert no muestra nada en web (lección ya aprendida en el
       // panel de admin con confirmAction): ahí usamos window.alert.
-      const message =
-        'No hemos podido acceder a tu ubicación. Comprueba el permiso de ubicación para esta app (o para este sitio, en el navegador) y que la ubicación esté activada en el dispositivo.';
+      const message = `No hemos podido acceder a tu ubicación.\n\nMotivo: ${result.error}`;
       if (Platform.OS === 'web') window.alert(message);
       else Alert.alert('Sin acceso a tu ubicación', message);
       return;
     }
-    setCenterOn({ lat: coords.latitude, lng: coords.longitude });
+    setCenterOn({ lat: result.coords.latitude, lng: result.coords.longitude });
   };
 
   if (!isSupabaseConfigured) return <SetupNotice />;
