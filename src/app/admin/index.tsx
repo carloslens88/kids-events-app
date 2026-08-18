@@ -3,6 +3,7 @@ import { Link, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
   FlatList,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -33,6 +34,7 @@ function isExpiredDraft(event: KidsEvent): boolean {
 export default function AdminEventList() {
   const [events, setEvents] = useState<KidsEvent[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('draft');
+  const [cityFilter, setCityFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [hidePast, setHidePast] = useState(true);
 
@@ -47,9 +49,22 @@ export default function AdminEventList() {
 
   useFocusEffect(fetchAll);
 
+  // Ciudades presentes en la BD, con cuántos eventos tiene cada una (para
+  // no perderse entre cientos de borradores de varias ciudades a la vez).
+  const cities = useMemo(() => {
+    const counts = new Map();
+    for (const e of events) counts.set(e.city, (counts.get(e.city) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [events]);
+
+  const byCity = useCallback(
+    (list: KidsEvent[]) => (cityFilter === 'all' ? list : list.filter((e) => e.city === cityFilter)),
+    [cityFilter]
+  );
+
   const counts = useMemo(() => {
     const now = new Date();
-    const relevant = events.filter((e) => {
+    const relevant = byCity(events).filter((e) => {
       if (isExpiredDraft(e)) return false;
       if (hidePast && new Date(e.last_date ?? e.starts_at) < now) return false;
       return true;
@@ -57,14 +72,14 @@ export default function AdminEventList() {
     return {
       draft: relevant.filter((e) => e.status === 'draft').length,
       published: relevant.filter((e) => e.status === 'published').length,
-      expired: events.filter(isExpiredDraft).length,
+      expired: byCity(events).filter(isExpiredDraft).length,
     };
-  }, [events, hidePast]);
+  }, [events, hidePast, byCity]);
 
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
     const now = new Date();
-    return events.filter((event) => {
+    return byCity(events).filter((event) => {
       const expired = isExpiredDraft(event);
       if (statusFilter === 'expired') {
         if (!expired) return false;
@@ -77,7 +92,7 @@ export default function AdminEventList() {
         return false;
       return true;
     });
-  }, [events, statusFilter, search, hidePast]);
+  }, [events, statusFilter, search, hidePast, byCity]);
 
   const deleteExpired = () => {
     confirmAction(
@@ -145,6 +160,34 @@ export default function AdminEventList() {
           </TouchableOpacity>
         ))}
       </View>
+
+      {cities.length > 1 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.cityRow}
+        >
+          <TouchableOpacity
+            style={[styles.cityChip, cityFilter === 'all' && styles.cityChipActive]}
+            onPress={() => setCityFilter('all')}
+          >
+            <Text style={[styles.cityChipText, cityFilter === 'all' && styles.cityChipTextActive]}>
+              Todas las ciudades
+            </Text>
+          </TouchableOpacity>
+          {cities.map(([city, count]) => (
+            <TouchableOpacity
+              key={city}
+              style={[styles.cityChip, cityFilter === city && styles.cityChipActive]}
+              onPress={() => setCityFilter(city)}
+            >
+              <Text style={[styles.cityChipText, cityFilter === city && styles.cityChipTextActive]}>
+                📍 {city} ({count})
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      ) : null}
 
       {statusFilter !== 'expired' ? (
         <TouchableOpacity style={styles.toggleRow} onPress={() => setHidePast(!hidePast)}>
@@ -287,6 +330,18 @@ const styles = StyleSheet.create({
   statusChipActive: { backgroundColor: colors.secondary, borderColor: colors.secondary },
   statusChipText: { fontSize: 13, fontWeight: '600', color: colors.text },
   statusChipTextActive: { color: '#FFFFFF' },
+  cityRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
+  cityChip: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  cityChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  cityChipText: { fontSize: 13, fontWeight: '600', color: colors.text },
+  cityChipTextActive: { color: '#FFFFFF' },
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
