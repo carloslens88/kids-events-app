@@ -1,6 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, fonts, radius, softShadow } from '@/constants/theme';
 
@@ -12,6 +21,7 @@ type Props = {
 
 export function CityPicker({ city, cities, onSelect }: Props) {
   const [open, setOpen] = useState(false);
+  const insets = useSafeAreaInsets();
 
   return (
     <>
@@ -23,26 +33,31 @@ export function CityPicker({ city, cities, onSelect }: Props) {
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
+          <Pressable
+            style={[styles.sheet, { paddingBottom: insets.bottom + 22 }]}
+            onPress={() => {}}
+          >
             <View style={styles.handle} />
             <Text style={styles.sheetTitle}>¿En qué ciudad buscas planes?</Text>
-            {cities.map((c) => {
-              const active = c === city;
-              return (
-                <TouchableOpacity
-                  key={c}
-                  style={[styles.option, active && styles.optionActive]}
-                  onPress={() => {
-                    onSelect(c);
-                    setOpen(false);
-                  }}
-                >
-                  <Text style={styles.optionEmoji}>📍</Text>
-                  <Text style={[styles.optionText, active && styles.optionTextActive]}>{c}</Text>
-                  {active ? <Ionicons name="checkmark-circle" size={22} color={colors.primary} /> : null}
-                </TouchableOpacity>
-              );
-            })}
+            <ScrollView style={styles.optionsList} showsVerticalScrollIndicator={false}>
+              {cities.map((c) => {
+                const active = c === city;
+                return (
+                  <TouchableOpacity
+                    key={c}
+                    style={[styles.option, active && styles.optionActive]}
+                    onPress={() => {
+                      onSelect(c);
+                      setOpen(false);
+                    }}
+                  >
+                    <Text style={styles.optionEmoji}>📍</Text>
+                    <Text style={[styles.optionText, active && styles.optionTextActive]}>{c}</Text>
+                    {active ? <Ionicons name="checkmark-circle" size={22} color={colors.primary} /> : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -74,9 +89,10 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: radius.sheet,
     borderTopRightRadius: radius.sheet,
     padding: 22,
-    paddingBottom: 40,
     gap: 6,
+    maxHeight: '70%',
   },
+  optionsList: { flexGrow: 0 },
   handle: {
     alignSelf: 'center',
     width: 44,
