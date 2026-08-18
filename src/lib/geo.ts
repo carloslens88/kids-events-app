@@ -75,12 +75,13 @@ export async function requestUserLocation(): Promise<LocationResult> {
     return { ok: false, error: `Permiso no concedido (estado: ${permission.status})` };
   }
 
-  // En web, justo después de conceder el permiso hemos visto que la PRIMERA
-  // llamada puede fallar con "denied" por una condición de carrera (el
-  // sistema aún terminando de aplicar el permiso) y un reintento inmediato
-  // sí funciona. Por eso se reintenta una vez antes de rendirse.
+  // En web hemos visto que la PRIMERA llamada puede fallar con "denied"
+  // aunque el permiso ya esté "granted" de verdad, y que reintentar pasados
+  // unos segundos sí funciona — parece necesitar más tiempo del que parecía
+  // a primera vista, así que la espera entre intentos es generosa.
+  const RETRY_DELAYS_MS = [1500, 2500];
   let lastError = 'Error desconocido';
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
     try {
       const position = await withTimeout(
         Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
@@ -97,7 +98,9 @@ export async function requestUserLocation(): Promise<LocationResult> {
     } catch (e) {
       lastError = describeLocationError(e) || lastError;
     }
-    if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 400));
+    if (attempt < RETRY_DELAYS_MS.length) {
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
+    }
   }
   return { ok: false, error: lastError };
 }
