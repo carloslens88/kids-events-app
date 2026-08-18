@@ -2,6 +2,8 @@
 // Fuentes:
 //   1. datos.madrid.es — agenda municipal (filtrada por audiencia Niños/Familias)
 //   2. Eventbrite — eventos de organizadores concretos (lista en env), opcional
+//   3. Open Data BCN — agenda diaria de Barcelona (filtrada por clasificación infantil)
+//   4. Datos Abiertos Málaga — agenda cultural en CSV (filtrada por destinatarios)
 //
 // Los eventos entran con status='draft' y NO aparecen en la app hasta que el
 // admin los revisa y publica desde el panel. Los reimportes no duplican ni
@@ -26,6 +28,7 @@ if (!DRY_RUN && (!SUPABASE_URL || !SERVICE_KEY)) {
 
 const now = new Date();
 const horizon = new Date(now.getTime() + HORIZON_DAYS * 24 * 3600 * 1000);
+const sameLocalDay = (a, b) => a.toDateString() === b.toDateString();
 
 // ---------- datos.madrid.es ----------
 
@@ -117,6 +120,255 @@ async function fetchMadridEvents() {
       lng: item.location?.longitude ?? null,
       price_eur: priceEur,
       source_url: item.link || null,
+      image_url: null,
+    });
+  }
+  return rows;
+}
+
+// ---------- Open Data BCN (Barcelona) ----------
+
+// Agenda diaria completa del ayuntamiento (~190 MB, ~5000 actividades de toda
+// la ciudad). La filtramos por clasificación: solo lo que la propia agenda
+// etiqueta explícitamente como infantil/familiar o con una edad concreta.
+const BARCELONA_FEED =
+  'https://opendata-ajuntament.barcelona.cat/data/dataset/a25e60cd-3083-4252-9fce-81f733871cb1/resource/da9e71de-0f8e-417d-928a-56380bfd0231/download';
+
+const BCN_CATEGORY_RULES = [
+  ['teatro', ['teatre', 'dansa', 'circ']],
+  ['musica', ['música', 'musica', 'concert']],
+  ['cuentacuentos', ['conte', 'titelles', 'narrac']],
+  ['taller', ['casals', 'colòni', 'coloni', 'taller']],
+  ['museo', ['exposici', 'museu', 'cinema']],
+  ['deporte', ['esport']],
+  ['aire_libre', ['itinerari', 'natura', 'parc', 'jardí', 'jardi']],
+];
+
+function mapBcnCategory(fullPaths) {
+  const t = fullPaths.join(' ').toLowerCase();
+  for (const [category, keywords] of BCN_CATEGORY_RULES) {
+    if (keywords.some((k) => t.includes(k))) return category;
+  }
+  return 'otros';
+}
+
+// Busca "NN anys" en las clasificaciones para acotar la edad exacta; si solo
+// hay una marca genérica de "infants"/"nens", usamos un rango amplio 0-12.
+function mapBcnAges(fullPaths) {
+  const text = fullPaths.join(' ').toLowerCase();
+  const isKids = /infant|nens|nenes|per edat|casals|colòni|coloni/.test(text);
+  if (!isKids) return null;
+
+  const ageMatches = [...text.matchAll(/\b(\d{2})\s*anys\b/g)].map((m) => parseInt(m[1], 10));
+  if (ageMatches.length > 0) {
+    return { age_min: Math.min(...ageMatches), age_max: Math.max(...ageMatches) };
+  }
+  return { age_min: 0, age_max: 12 };
+}
+
+function stripHtml(html) {
+  return (html ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || null;
+}
+
+async function fetchBarcelonaEvents() {
+  const response = await fetch(BARCELONA_FEED, { redirect: 'follow' });
+  if (!response.ok) throw new Error(`Open Data BCN HTTP ${response.status}`);
+  const data = await response.json();
+  const rows = [];
+
+  for (const item of data ?? []) {
+    const start = item.start_date ? new Date(item.start_date) : null;
+    const end = item.end_date ? new Date(item.end_date) : start;
+    if (!start || isNaN(start.getTime())) continue;
+    if (start > horizon) continue;
+    if ((end ?? start) < now) continue;
+
+    const fullPaths = [...(item.classifications_data ?? []), ...(item.secondary_filters_data ?? [])].map(
+      (c) => c.full_path ?? c.name ?? ''
+    );
+    const ages = mapBcnAges(fullPaths);
+    if (!ages) continue;
+
+    const address = (item.addresses ?? []).find((a) => a.main_address) ?? item.addresses?.[0];
+    const coords = address?.location_4326_latlon?.geometries?.[0]?.coordinates; // [lng, lat]
+
+    rows.push({
+      external_id: `barcelona:${item.register_id}`,
+      source: 'barcelona_opendata',
+      status: 'draft',
+      title: (item.name ?? '').trim(),
+      description: stripHtml(item.body),
+      category: mapBcnCategory(fullPaths),
+      ...ages,
+      date_mode: sameLocalDay(start, end) ? 'single' : 'range',
+      starts_at: start.toISOString(),
+      ends_at: sameLocalDay(start, end) ? null : end.toISOString(),
+      extra_dates: [],
+      venue_name: address?.address_name ?? null,
+      address: address?.address_name ?? null,
+      city: 'Barcelona',
+      lat: coords ? coords[1] : null,
+      lng: coords ? coords[0] : null,
+      price_eur: 0, // no viene en el feed de forma fiable; el admin lo ajusta al revisar
+      source_url: null,
+      image_url: null,
+    });
+  }
+  return rows;
+}
+
+// ---------- Datos Abiertos Málaga ----------
+
+// CSV actualizado a diario con la agenda del año en curso. Trae un campo de
+// destinatarios limpio (INFANTIL / JUVENIL / TODAS LAS EDADES / ADULTOS) pero
+// no coordenadas: geocodificamos cada dirección única con Nominatim,
+// respetando su límite de 1 petición/segundo.
+const MALAGA_AGES = {
+  INFANTIL: { age_min: 0, age_max: 12 },
+  JUVENIL: { age_min: 12, age_max: 17 },
+  'TODAS LAS EDADES': { age_min: 0, age_max: 17 },
+};
+
+const MALAGA_CATEGORY_RULES = [
+  ['taller', ['cursos y talleres']],
+  ['musica', ['música', 'musica']],
+  ['teatro', ['espectaculos', 'espectáculos']],
+  ['deporte', ['deportes']],
+  ['museo', ['ferias, exposiciones y museos', 'cine']],
+  ['aire_libre', ['fiestas populares']],
+];
+
+function mapMalagaCategory(categoria = '') {
+  const c = categoria.toLowerCase();
+  for (const [category, keywords] of MALAGA_CATEGORY_RULES) {
+    if (keywords.some((k) => c.includes(k))) return category;
+  }
+  return 'otros';
+}
+
+// "DD/MM/YYYY HH:MM:SS" en hora de Málaga.
+function parseMalagaDate(value) {
+  const m = (value ?? '').match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+  if (!m) return null;
+  const [, day, month, year, hour, minute] = m;
+  const d = new Date(`${year}-${month}-${day}T${hour}:${minute}:00`);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// Parser CSV mínimo pero correcto: soporta campos entre comillas con comas y
+// saltos de línea dentro (el CSV de Málaga los tiene, p. ej. en teléfonos).
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"' && text[i + 1] === '"') {
+        field += '"';
+        i++;
+      } else if (c === '"') {
+        inQuotes = false;
+      } else {
+        field += c;
+      }
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === ',') {
+      row.push(field);
+      field = '';
+    } else if (c === '\r') {
+      // ignorar, el \n del CRLF cierra la fila
+    } else if (c === '\n') {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = '';
+    } else {
+      field += c;
+    }
+  }
+  if (field || row.length) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows;
+}
+
+const geocodeCache = new Map();
+
+// Nominatim pide como máximo 1 petición/segundo; los eventos comparten mucho
+// recinto, así que en la práctica son pocas direcciones únicas por ejecución.
+async function geocodeMalaga(address, attempt = 1) {
+  if (geocodeCache.has(address)) return geocodeCache.get(address);
+  const query = encodeURIComponent(`${address}, Málaga, España`);
+  let coords = null;
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${query}`,
+      { headers: { 'User-Agent': 'peque-eventos-importer/1.0' }, signal: AbortSignal.timeout(8000) }
+    );
+    const results = response.ok ? await response.json() : [];
+    if (results[0]) coords = { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) };
+  } catch {
+    // timeout o fallo de red puntual: se reintenta una vez más abajo
+  }
+  await new Promise((resolve) => setTimeout(resolve, 1100));
+  if (!coords && attempt < 2) return geocodeMalaga(address, attempt + 1);
+  geocodeCache.set(address, coords);
+  return coords;
+}
+
+async function fetchMalagaEvents() {
+  const year = now.getFullYear();
+  const response = await fetch(`https://datosabiertos.malaga.eu/recursos/cultura/agenda/${year}.csv`);
+  if (!response.ok) throw new Error(`Datos Abiertos Málaga HTTP ${response.status}`);
+  const text = await response.text();
+  const [header, ...dataRows] = parseCsv(text);
+  const idx = Object.fromEntries(header.map((h, i) => [h, i]));
+  const rows = [];
+
+  for (const cols of dataRows) {
+    if (cols.length < header.length) continue;
+    const ages = MALAGA_AGES[cols[idx.DESTINATARIOS_DESCRIPCION]];
+    if (!ages) continue;
+
+    const start = parseMalagaDate(cols[idx.F_INICIO]);
+    const end = parseMalagaDate(cols[idx.F_FIN]) ?? start;
+    if (!start) continue;
+    if (start > horizon) continue;
+    if ((end ?? start) < now) continue;
+
+    const streetAddress = cols[idx.EQP_NOMBRECALLE]?.trim();
+    const coords = streetAddress ? await geocodeMalaga(streetAddress) : null;
+
+    let webUrl = cols[idx.DIRECCION_WEB]?.trim() || null;
+    if (webUrl && !/^https?:\/\//i.test(webUrl)) webUrl = `https://${webUrl}`;
+
+    let priceEur = 0;
+    const priceMatch = (cols[idx.PRECIO] ?? '').replace(',', '.').match(/\d+(\.\d+)?/);
+    if (priceMatch) priceEur = parseFloat(priceMatch[0]);
+
+    rows.push({
+      external_id: `malaga:${cols[idx.ID_ACTIVIDAD] || cols[idx.ID_EVENTO]}`,
+      source: 'malaga_opendata',
+      status: 'draft',
+      title: (cols[idx.NOMBRE] || cols[idx.EVENTO] || '').trim(),
+      description: cols[idx.DESCRIPCION]?.trim() || null,
+      category: mapMalagaCategory(cols[idx.CATEGORIA]),
+      ...ages,
+      date_mode: sameLocalDay(start, end) ? 'single' : 'range',
+      starts_at: start.toISOString(),
+      ends_at: sameLocalDay(start, end) ? null : end.toISOString(),
+      extra_dates: [],
+      venue_name: cols[idx.EQP_DESCRIPCION]?.trim() || null,
+      address: streetAddress || null,
+      city: 'Málaga',
+      lat: coords?.lat ?? null,
+      lng: coords?.lng ?? null,
+      price_eur: priceEur,
+      source_url: webUrl,
       image_url: null,
     });
   }
@@ -221,13 +473,26 @@ const madrid = await fetchMadridEvents();
 console.log(`datos.madrid.es: ${madrid.length} eventos infantiles/familiares en ventana de ${HORIZON_DAYS} días`);
 const eventbrite = await fetchEventbriteEvents();
 if (eventbrite.length) console.log(`Eventbrite: ${eventbrite.length} eventos en ventana`);
+const barcelona = await fetchBarcelonaEvents();
+console.log(`Open Data BCN: ${barcelona.length} eventos infantiles/familiares en ventana`);
+const malaga = await fetchMalagaEvents();
+console.log(`Datos Abiertos Málaga: ${malaga.length} eventos infantiles/familiares en ventana`);
+
+const allRows = [...madrid, ...eventbrite, ...barcelona, ...malaga];
 
 if (DRY_RUN) {
-  const byCategory = {};
-  for (const row of madrid) byCategory[row.category] = (byCategory[row.category] ?? 0) + 1;
-  console.log('Por categoría:', byCategory);
-  console.log('Muestra:', JSON.stringify(madrid[0], null, 2));
+  for (const [label, rows] of [
+    ['Madrid', madrid],
+    ['Barcelona', barcelona],
+    ['Málaga', malaga],
+  ]) {
+    const byCategory = {};
+    for (const row of rows) byCategory[row.category] = (byCategory[row.category] ?? 0) + 1;
+    const withCoords = rows.filter((r) => r.lat != null).length;
+    console.log(`${label} por categoría:`, byCategory, `| con coordenadas: ${withCoords}/${rows.length}`);
+    if (rows[0]) console.log(`${label} muestra:`, JSON.stringify(rows[0], null, 2));
+  }
 } else {
-  const total = await insertDrafts([...madrid, ...eventbrite]);
+  const total = await insertDrafts(allRows);
   console.log(`Nuevos borradores insertados: ${total} (el resto ya existía)`);
 }

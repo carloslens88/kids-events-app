@@ -82,7 +82,7 @@ supabase/
   migration-duracion.sql # Migración: duración aproximada del evento en minutos (opcional)
   seed.sql              # Eventos de ejemplo en Madrid
 scripts/
-  import-events.mjs     # Importador diario (datos.madrid.es + Eventbrite)
+  import-events.mjs     # Importador diario (Madrid, Barcelona, Málaga + Eventbrite)
   cleanup-events.mjs    # Borra borradores caducados sin publicar (diario, con margen)
 ```
 
@@ -136,8 +136,11 @@ ejecuta [scripts/import-events.mjs](scripts/import-events.mjs), que trae eventos
 familiares con 3 meses de vista y los guarda como **borradores**: no aparecen en la app hasta
 que los revisas y publicas desde /admin (pestaña "Borradores").
 
-Fuentes:
-- **datos.madrid.es** (agenda municipal, filtrada por audiencia Niños/Familias) — sin configuración.
+Fuentes (Madrid, Barcelona y Málaga no requieren ninguna configuración adicional):
+- **datos.madrid.es** (agenda municipal, filtrada por audiencia Niños/Familias).
+- **Open Data BCN** (agenda diaria de Barcelona, filtrada por clasificación infantil/edad).
+- **Datos Abiertos Málaga** (CSV diario, filtrado por destinatarios INFANTIL/JUVENIL/TODAS LAS EDADES;
+  sin coordenadas propias, se geocodifican las direcciones con Nominatim).
 - **Eventbrite** (opcional): eventos de organizadores concretos. Requiere token de su API y
   la lista de ids de organizadores.
 
