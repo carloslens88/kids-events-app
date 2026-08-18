@@ -33,6 +33,27 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
 
 export type LocationResult = { ok: true; coords: Coords } | { ok: false; error: string };
 
+const GEOLOCATION_ERROR_CODES: Record<number, string> = {
+  1: 'permiso denegado',
+  2: 'posición no disponible',
+  3: 'tiempo de espera agotado',
+};
+
+// El rechazo de navigator.geolocation es un GeolocationPositionError, que NO
+// hereda de Error (así que "e instanceof Error" falla y String(e) da
+// "[object Object]"): hay que leer sus campos .code/.message a mano.
+function describeLocationError(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === 'object') {
+    const obj = e as { code?: number; message?: string };
+    const known = typeof obj.code === 'number' ? GEOLOCATION_ERROR_CODES[obj.code] : undefined;
+    if (obj.message && known) return `${obj.message} (${known}, código ${obj.code})`;
+    if (obj.message) return obj.message;
+    if (known) return `${known} (código ${obj.code})`;
+  }
+  return String(e);
+}
+
 // Pide permiso y devuelve la ubicación una vez, bajo demanda (p. ej. al
 // pulsar un botón "mi ubicación"). A diferencia de useUserLocation, no se
 // dispara solo en segundo plano: el permiso se pide como reacción directa a
@@ -64,8 +85,7 @@ export async function requestUserLocation(): Promise<LocationResult> {
       coords: { latitude: position.coords.latitude, longitude: position.coords.longitude },
     };
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    return { ok: false, error: message || 'Error desconocido' };
+    return { ok: false, error: describeLocationError(e) || 'Error desconocido' };
   }
 }
 
