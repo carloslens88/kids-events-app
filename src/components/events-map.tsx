@@ -9,26 +9,20 @@ import { KidsEvent } from '@/lib/types';
 type Props = {
   events: KidsEvent[];
   city: string;
-  userLocation?: { lat: number; lng: number } | null;
-  centerRequestId?: number; // se incrementa para forzar recentrar en userLocation
+  centerOn?: { lat: number; lng: number } | null; // cambia para recentrar en caliente
 };
 
 // Versión nativa (iOS/Android): Leaflet dentro de un WebView.
 // La versión web vive en events-map.web.tsx (iframe).
-export function EventsMap({ events, city, userLocation, centerRequestId }: Props) {
+export function EventsMap({ events, city, centerOn }: Props) {
   const router = useRouter();
   const webviewRef = useRef<WebView>(null);
-  const html = useMemo(
-    () => buildMapHtml(events, 'webview', city, userLocation ?? null),
-    [events, city, userLocation]
-  );
+  const html = useMemo(() => buildMapHtml(events, city), [events, city]);
 
   useEffect(() => {
-    if (!centerRequestId || !userLocation) return;
-    webviewRef.current?.injectJavaScript(
-      `window.map && window.map.setView([${userLocation.lat}, ${userLocation.lng}], 15); true;`
-    );
-  }, [centerRequestId]);
+    if (!centerOn) return;
+    webviewRef.current?.postMessage(JSON.stringify({ centerOn }));
+  }, [centerOn]);
 
   return (
     <WebView

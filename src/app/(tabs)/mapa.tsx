@@ -1,23 +1,23 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EventsMap } from '@/components/events-map';
 import { SetupNotice } from '@/components/setup-notice';
 import { cardShadow, colors } from '@/constants/theme';
 import { useCity } from '@/lib/city';
-import { useUserLocation } from '@/lib/geo';
+import { requestUserLocation } from '@/lib/geo';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { KidsEvent } from '@/lib/types';
 
 export default function MapScreen() {
   const [events, setEvents] = useState<KidsEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [centerRequestId, setCenterRequestId] = useState(0);
+  const [locating, setLocating] = useState(false);
+  const [centerOn, setCenterOn] = useState<{ lat: number; lng: number } | null>(null);
   const { city } = useCity();
-  const userCoords = useUserLocation();
   const insets = useSafeAreaInsets();
 
   useFocusEffect(
@@ -37,9 +37,21 @@ export default function MapScreen() {
     }, [city])
   );
 
-  if (!isSupabaseConfigured) return <SetupNotice />;
+  const handleLocate = async () => {
+    setLocating(true);
+    const coords = await requestUserLocation();
+    setLocating(false);
+    if (!coords) {
+      Alert.alert(
+        'Sin acceso a tu ubicación',
+        'Activa el permiso de ubicación para esta app en los ajustes de tu dispositivo.'
+      );
+      return;
+    }
+    setCenterOn({ lat: coords.latitude, lng: coords.longitude });
+  };
 
-  const userLocation = userCoords ? { lat: userCoords.latitude, lng: userCoords.longitude } : null;
+  if (!isSupabaseConfigured) return <SetupNotice />;
 
   return (
     <View style={styles.container}>
@@ -47,21 +59,19 @@ export default function MapScreen() {
         <ActivityIndicator style={styles.center} color={colors.primary} size="large" />
       ) : (
         <>
-          <EventsMap
-            events={events}
-            city={city}
-            userLocation={userLocation}
-            centerRequestId={centerRequestId}
-          />
-          {userLocation ? (
-            <TouchableOpacity
-              style={[styles.locateButton, { bottom: insets.bottom + 20 }]}
-              onPress={() => setCenterRequestId((n) => n + 1)}
-              activeOpacity={0.8}
-            >
+          <EventsMap events={events} city={city} centerOn={centerOn} />
+          <TouchableOpacity
+            style={[styles.locateButton, { bottom: insets.bottom + 20 }]}
+            onPress={handleLocate}
+            activeOpacity={0.8}
+            disabled={locating}
+          >
+            {locating ? (
+              <ActivityIndicator color={colors.primary} size="small" />
+            ) : (
               <Ionicons name="locate" size={22} color={colors.primary} />
-            </TouchableOpacity>
-          ) : null}
+            )}
+          </TouchableOpacity>
         </>
       )}
     </View>

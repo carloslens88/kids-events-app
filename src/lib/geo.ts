@@ -24,6 +24,19 @@ export function formatDistance(km: number): string {
   return `${km.toLocaleString('es-ES', { maximumFractionDigits: 1 })} km`;
 }
 
+// Pide permiso y devuelve la ubicación una vez, bajo demanda (p. ej. al
+// pulsar un botón "mi ubicación"). A diferencia de useUserLocation, no se
+// dispara solo en segundo plano: el permiso se pide como reacción directa a
+// una acción del usuario, que es lo que los navegadores/SO esperan.
+export async function requestUserLocation(): Promise<Coords | null> {
+  const { status } = await Location.requestForegroundPermissionsAsync();
+  if (status !== 'granted') return null;
+  const position = await Location.getCurrentPositionAsync({
+    accuracy: Location.Accuracy.Balanced,
+  });
+  return { latitude: position.coords.latitude, longitude: position.coords.longitude };
+}
+
 // Pide permiso de ubicación una vez y devuelve las coordenadas del usuario,
 // o null si no hay permiso. La app funciona igual sin ubicación.
 export function useUserLocation(): Coords | null {

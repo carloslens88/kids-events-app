@@ -8,17 +8,11 @@ const CITY_CENTERS: Record<string, [number, number]> = {
   Málaga: [36.7213, -4.4213],
 };
 
-type UserLocation = { lat: number; lng: number } | null;
-
 // HTML del mapa (Leaflet + OpenStreetMap, sin API keys) compartido entre la
-// versión nativa (WebView) y la web (iframe). `channel` decide cómo se avisa
-// al tocar un pin: postMessage al WebView o al window padre.
-export function buildMapHtml(
-  events: KidsEvent[],
-  channel: 'webview' | 'iframe',
-  city: string,
-  userLocation: UserLocation = null
-): string {
+// versión nativa (WebView) y la web (iframe). El centrado/marcador de "mi
+// ubicación" se controla después, en caliente, con un mensaje — así pulsar
+// el botón no recarga el mapa entero ni pierde el zoom/posición actuales.
+export function buildMapHtml(events: KidsEvent[], city: string): string {
   const markers = events
     .filter((e) => e.lat != null && e.lng != null)
     .map((e) => {
@@ -32,11 +26,6 @@ export function buildMapHtml(
         title: e.title.replace(/[<>"'`]/g, ''),
       };
     });
-
-  const notify =
-    channel === 'webview'
-      ? "window.ReactNativeWebView.postMessage(id)"
-      : "window.parent.postMessage({ pequeEventId: id }, '*')";
 
   const fallbackCenter = CITY_CENTERS[city] ?? CITY_CENTERS.Madrid;
 
@@ -55,25 +44,20 @@ export function buildMapHtml(
       .leaflet-control-attribution { font-size: 9px; padding: 0 4px; opacity: 0.7; }
     </style>
   </head><body><div id="map"></div><script>
-    function openEvent(id) { ${notify} }
+    function openEvent(id) {
+      const msg = { pequeEventId: id };
+      if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(id);
+      else window.parent.postMessage(msg, '*');
+    }
     const markers = ${JSON.stringify(markers)};
-    const userLocation = ${JSON.stringify(userLocation)};
     const fallbackCenter = ${JSON.stringify(fallbackCenter)};
 
     const map = L.map('map', { zoomControl: false });
-    window.map = map; // permite recentrar desde fuera (injectJavaScript / postMessage)
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap',
       maxZoom: 19,
     }).addTo(map);
     map.attributionControl.setPrefix(false); // quita el "Leaflet" del control, deja solo el aviso obligatorio de OSM
-
-    // El padre (WebView nativo o iframe web) puede pedir recentrar el mapa,
-    // por ejemplo al pulsar el botón de "mi ubicación".
-    window.addEventListener('message', (event) => {
-      const data = event.data;
-      if (data && data.centerOn) map.setView([data.centerOn.lat, data.centerOn.lng], 15);
-    });
 
     function pinIcon(color, emoji) {
       const svg = '<svg width="34" height="44" viewBox="0 0 34 44">' +
@@ -95,18 +79,32 @@ export function buildMapHtml(
       marker.bindPopup('<b>' + m.title + '</b><br/><a href="#" onclick="openEvent(\\'' + m.id + '\\'); return false;">Ver evento →</a>');
       group.push(marker);
     }
-
-    if (userLocation) {
-      const meIcon = L.divIcon({ className: '', html: '<div class="me-dot"></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
-      L.marker([userLocation.lat, userLocation.lng], { icon: meIcon, zIndexOffset: 1000 }).addTo(map);
-    }
-
     if (group.length > 0) {
       map.fitBounds(L.featureGroup(group).getBounds().pad(0.2));
-    } else if (userLocation) {
-      map.setView([userLocation.lat, userLocation.lng], 13);
     } else {
       map.setView(fallbackCenter, 12);
     }
+
+    // Botón "mi ubicación" del lado nativo/web: pide centrar el mapa y
+    // pintar (o mover) el punto azul, sin recargar nada. Funciona tanto con
+    // postMessage del WebView de React Native (llega a 'document') como con
+    // el postMessage del iframe en la web (llega a 'window').
+    let meMarker = null;
+    function meIcon() {
+      return L.divIcon({ className: '', html: '<div class="me-dot"></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
+    }
+    function handleMessage(event) {
+      let data = event.data;
+      if (typeof data === 'string') {
+        try { data = JSON.parse(data); } catch { return; }
+      }
+      if (!data || !data.centerOn) return;
+      const { lat, lng } = data.centerOn;
+      map.setView([lat, lng], 15);
+      if (meMarker) meMarker.setLatLng([lat, lng]);
+      else meMarker = L.marker([lat, lng], { icon: meIcon(), zIndexOffset: 1000 }).addTo(map);
+    }
+    window.addEventListener('message', handleMessage);
+    document.addEventListener('message', handleMessage); // WebView de React Native en Android
   </script></body></html>`;
 }

@@ -7,19 +7,15 @@ import { KidsEvent } from '@/lib/types';
 type Props = {
   events: KidsEvent[];
   city: string;
-  userLocation?: { lat: number; lng: number } | null;
-  centerRequestId?: number; // se incrementa para forzar recentrar en userLocation
+  centerOn?: { lat: number; lng: number } | null; // cambia para recentrar en caliente
 };
 
 // Versión web: el mismo mapa Leaflet, dentro de un iframe.
 // Los pines avisan con postMessage al window padre para navegar al detalle.
-export function EventsMap({ events, city, userLocation, centerRequestId }: Props) {
+export function EventsMap({ events, city, centerOn }: Props) {
   const router = useRouter();
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const html = useMemo(
-    () => buildMapHtml(events, 'iframe', city, userLocation ?? null),
-    [events, city, userLocation]
-  );
+  const html = useMemo(() => buildMapHtml(events, city), [events, city]);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
@@ -31,9 +27,9 @@ export function EventsMap({ events, city, userLocation, centerRequestId }: Props
   }, [router]);
 
   useEffect(() => {
-    if (!centerRequestId || !userLocation) return;
-    iframeRef.current?.contentWindow?.postMessage({ centerOn: userLocation }, '*');
-  }, [centerRequestId]);
+    if (!centerOn) return;
+    iframeRef.current?.contentWindow?.postMessage({ centerOn }, '*');
+  }, [centerOn]);
 
   return (
     <iframe
