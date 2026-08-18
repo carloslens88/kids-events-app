@@ -443,6 +443,88 @@ async function fetchEventbriteEvents() {
   return rows;
 }
 
+// ---------- Deduplicado contra lo que ya hay en la base de datos ----------
+
+// El on_conflict=external_id evita reinsertar el MISMO registro dos veces,
+// pero no detecta el mismo evento real con un id distinto (p. ej. si el
+// propio feed lo publica duplicado, o si aparece en dos fuentes a la vez).
+// Aquí comparamos por título normalizado + fecha cercana dentro de la misma
+// ciudad, igual que ya hace el aviso de duplicados del panel de admin.
+function normalizeTitle(text) {
+  return (text ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .trim();
+}
+
+async function fetchExistingIndex(cities) {
+  const cityFilter = cities.map((c) => `"${c}"`).join(',');
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/events?select=title,starts_at,city,external_id&city=in.(${cityFilter})&limit=10000`,
+    { headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } }
+  );
+  if (!response.ok) throw new Error(`Supabase HTTP ${response.status} leyendo existentes`);
+  const existing = await response.json();
+
+  const byCity = new Map(); // city -> [{ normalized, startsAt, externalId }]
+  for (const row of existing) {
+    const list = byCity.get(row.city) ?? [];
+    list.push({
+      normalized: normalizeTitle(row.title),
+      startsAt: new Date(row.starts_at),
+      externalId: row.external_id,
+    });
+    byCity.set(row.city, list);
+  }
+  return byCity;
+}
+
+// externalId distinto (o null) es lo que hace que sea un duplicado "de
+// verdad": el mismo external_id ya lo resuelve on_conflict sin necesidad de
+// pasar por aquí, y contarlo aquí también solo ensuciaría el log a diario.
+function isDuplicate(row, byCity) {
+  const normalized = normalizeTitle(row.title);
+  if (normalized.length < 4) return false;
+  const candidates = byCity.get(row.city) ?? [];
+  const rowStart = new Date(row.starts_at);
+  return candidates.some(({ normalized: other, startsAt, externalId }) => {
+    if (externalId === row.external_id) return false;
+    const sameTitle = other === normalized || other.includes(normalized) || normalized.includes(other);
+    if (!sameTitle) return false;
+    const diffDays = Math.abs(rowStart.getTime() - startsAt.getTime()) / 86400000;
+    return diffDays <= 2;
+  });
+}
+
+async function dedupeAgainstExisting(rows) {
+  if (rows.length === 0) return rows;
+  const cities = [...new Set(rows.map((r) => r.city))];
+  const byCity = await fetchExistingIndex(cities);
+
+  const unique = [];
+  let skipped = 0;
+  for (const row of rows) {
+    if (isDuplicate(row, byCity)) {
+      skipped += 1;
+      continue;
+    }
+    unique.push(row);
+    // Para detectar también duplicados entre dos candidatos nuevos de esta
+    // misma tanda (p. ej. Madrid + Eventbrite trayendo el mismo evento a la
+    // vez), los añadimos al índice según se van aceptando.
+    const list = byCity.get(row.city) ?? [];
+    list.push({
+      normalized: normalizeTitle(row.title),
+      startsAt: new Date(row.starts_at),
+      externalId: row.external_id,
+    });
+    byCity.set(row.city, list);
+  }
+  if (skipped > 0) console.log(`Duplicados detectados y omitidos (título + fecha ±2 días): ${skipped}`);
+  return unique;
+}
+
 // ---------- Inserción en Supabase ----------
 
 async function insertDrafts(rows) {
@@ -493,6 +575,7 @@ if (DRY_RUN) {
     if (rows[0]) console.log(`${label} muestra:`, JSON.stringify(rows[0], null, 2));
   }
 } else {
-  const total = await insertDrafts(allRows);
+  const deduped = await dedupeAgainstExisting(allRows);
+  const total = await insertDrafts(deduped);
   console.log(`Nuevos borradores insertados: ${total} (el resto ya existía)`);
 }
