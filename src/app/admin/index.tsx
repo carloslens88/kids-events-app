@@ -3,7 +3,6 @@ import { Link, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
   FlatList,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -162,12 +161,7 @@ export default function AdminEventList() {
       </View>
 
       {cities.length > 1 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.cityScroll}
-          contentContainerStyle={styles.cityRow}
-        >
+        <View style={styles.cityRow}>
           <TouchableOpacity
             style={[styles.cityChip, cityFilter === 'all' && styles.cityChipActive]}
             onPress={() => setCityFilter('all')}
@@ -187,7 +181,7 @@ export default function AdminEventList() {
               </Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </View>
       ) : null}
 
       {statusFilter !== 'expired' ? (
@@ -331,8 +325,14 @@ const styles = StyleSheet.create({
   statusChipActive: { backgroundColor: colors.secondary, borderColor: colors.secondary },
   statusChipText: { fontSize: 13, fontWeight: '600', color: colors.text },
   statusChipTextActive: { color: '#FFFFFF' },
-  cityScroll: { flexGrow: 0, height: 44 },
-  cityRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
+  cityRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+  },
   cityChip: {
     borderRadius: 999,
     paddingHorizontal: 12,
