@@ -24,17 +24,37 @@ export function formatDistance(km: number): string {
   return `${km.toLocaleString('es-ES', { maximumFractionDigits: 1 })} km`;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    promise,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ]);
+}
+
 // Pide permiso y devuelve la ubicación una vez, bajo demanda (p. ej. al
 // pulsar un botón "mi ubicación"). A diferencia de useUserLocation, no se
 // dispara solo en segundo plano: el permiso se pide como reacción directa a
 // una acción del usuario, que es lo que los navegadores/SO esperan.
+//
+// La implementación web de expo-location tiene un fallo conocido: si el
+// usuario deniega el permiso desde el diálogo nativo del navegador, su
+// promesa interna no se resuelve ni falla — se queda colgada para siempre.
+// Por eso todo va envuelto en un timeout de seguridad: si en 10s no hay
+// respuesta, se trata como "sin ubicación" en vez de dejar el botón
+// girando eternamente.
 export async function requestUserLocation(): Promise<Coords | null> {
-  const { status } = await Location.requestForegroundPermissionsAsync();
-  if (status !== 'granted') return null;
-  const position = await Location.getCurrentPositionAsync({
-    accuracy: Location.Accuracy.Balanced,
-  });
-  return { latitude: position.coords.latitude, longitude: position.coords.longitude };
+  try {
+    const permission = await withTimeout(Location.requestForegroundPermissionsAsync(), 10000);
+    if (!permission || permission.status !== 'granted') return null;
+    const position = await withTimeout(
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+      10000
+    );
+    if (!position) return null;
+    return { latitude: position.coords.latitude, longitude: position.coords.longitude };
+  } catch {
+    return null;
+  }
 }
 
 // Pide permiso de ubicación una vez y devuelve las coordenadas del usuario,
