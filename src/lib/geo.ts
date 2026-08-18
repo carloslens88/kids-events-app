@@ -67,26 +67,39 @@ function describeLocationError(e: unknown): string {
 // eternamente. Devuelve el motivo exacto (mensaje del navegador/SO) para
 // poder mostrarlo y diagnosticar, en vez de un genérico "no se pudo".
 export async function requestUserLocation(): Promise<LocationResult> {
-  try {
-    const permission = await withTimeout(Location.requestForegroundPermissionsAsync(), 6000);
-    if (!permission) {
-      return { ok: false, error: 'El sistema no respondió a la solicitud de permiso (timeout)' };
-    }
-    if (permission.status !== 'granted') {
-      return { ok: false, error: `Permiso no concedido (estado: ${permission.status})` };
-    }
-    const position = await withTimeout(
-      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
-      6000
-    );
-    if (!position) return { ok: false, error: 'El dispositivo no respondió con tu posición (timeout)' };
-    return {
-      ok: true,
-      coords: { latitude: position.coords.latitude, longitude: position.coords.longitude },
-    };
-  } catch (e) {
-    return { ok: false, error: describeLocationError(e) || 'Error desconocido' };
+  const permission = await withTimeout(Location.requestForegroundPermissionsAsync(), 6000);
+  if (!permission) {
+    return { ok: false, error: 'El sistema no respondió a la solicitud de permiso (timeout)' };
   }
+  if (permission.status !== 'granted') {
+    return { ok: false, error: `Permiso no concedido (estado: ${permission.status})` };
+  }
+
+  // En web, justo después de conceder el permiso hemos visto que la PRIMERA
+  // llamada puede fallar con "denied" por una condición de carrera (el
+  // sistema aún terminando de aplicar el permiso) y un reintento inmediato
+  // sí funciona. Por eso se reintenta una vez antes de rendirse.
+  let lastError = 'Error desconocido';
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const position = await withTimeout(
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        6000
+      );
+      if (!position) {
+        lastError = 'El dispositivo no respondió con tu posición (timeout)';
+      } else {
+        return {
+          ok: true,
+          coords: { latitude: position.coords.latitude, longitude: position.coords.longitude },
+        };
+      }
+    } catch (e) {
+      lastError = describeLocationError(e) || lastError;
+    }
+    if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 400));
+  }
+  return { ok: false, error: lastError };
 }
 
 // Pide permiso de ubicación una vez y devuelve las coordenadas del usuario,
