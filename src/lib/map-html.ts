@@ -6,6 +6,7 @@ const CITY_CENTERS: Record<string, [number, number]> = {
   Madrid: [40.4168, -3.7038],
   Barcelona: [41.3874, 2.1686],
   Málaga: [36.7213, -4.4213],
+  Zaragoza: [41.6488, -0.8891],
 };
 
 // HTML del mapa (Leaflet + OpenStreetMap, sin API keys) compartido entre la
