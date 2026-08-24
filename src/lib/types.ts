@@ -67,7 +67,17 @@ export type KidsEvent = {
   source: string; // manual | madrid_opendata | eventbrite
   external_id: string | null;
   featured: boolean;
+  featured_until: string | null;
 };
+
+// "featured" sin fecha es destacado permanente (comportamiento de siempre);
+// con fecha, deja de contar en cuanto pasa, sin que haga falta ningún job
+// que desmarque el booleano.
+export function isCurrentlyFeatured(event: Pick<KidsEvent, 'featured' | 'featured_until'>): boolean {
+  if (!event.featured) return false;
+  if (!event.featured_until) return true;
+  return new Date(event.featured_until) > new Date();
+}
 
 export function formatAges(event: Pick<KidsEvent, 'age_min' | 'age_max'>): string {
   if (event.age_min <= 0 && event.age_max >= 16) return 'Todas las edades';

@@ -31,15 +31,26 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
       if (saved) setCityState(saved);
     });
     if (!isSupabaseConfigured) return;
-    supabase
-      .from('events')
-      .select('city')
-      .eq('status', 'published')
-      .then(({ data }) => {
-        if (!data || data.length === 0) return;
-        const unique = [...new Set(data.map((row) => row.city as string))].sort();
-        setCities(unique);
-      });
+    // Supabase tope un máximo duro de 1000 filas por petición pase lo que
+    // pase en .limit(): con más eventos publicados que eso (ya los hay),
+    // las ciudades más nuevas se quedaban fuera del selector sin ningún
+    // error. Hay que paginar de verdad con .range(), no basta con pedir un
+    // límite más alto.
+    (async () => {
+      const PAGE_SIZE = 1000;
+      const citySet = new Set<string>();
+      for (let from = 0; ; from += PAGE_SIZE) {
+        const { data } = await supabase
+          .from('events')
+          .select('city')
+          .eq('status', 'published')
+          .range(from, from + PAGE_SIZE - 1);
+        if (!data || data.length === 0) break;
+        for (const row of data) citySet.add(row.city as string);
+        if (data.length < PAGE_SIZE) break;
+      }
+      if (citySet.size > 0) setCities([...citySet].sort());
+    })();
   }, []);
 
   const setCity = useCallback((next: string) => {

@@ -13,7 +13,7 @@ import {
 import { colors } from '@/constants/theme';
 import { confirmAction } from '@/lib/admin';
 import { supabase } from '@/lib/supabase';
-import { formatSchedule, getCategory, KidsEvent } from '@/lib/types';
+import { formatSchedule, getCategory, isCurrentlyFeatured, KidsEvent } from '@/lib/types';
 
 type StatusFilter = 'draft' | 'published' | 'all' | 'expired';
 
@@ -37,29 +37,63 @@ export default function AdminEventList() {
   const [search, setSearch] = useState('');
   const [hidePast, setHidePast] = useState(true);
 
-  const fetchAll = useCallback(() => {
-    // El admin ve todo: borradores, publicados y pasados.
-    supabase
-      .from('events')
-      .select('*')
-      .order('starts_at', { ascending: true })
-      .then(({ data }) => setEvents((data as KidsEvent[]) ?? []));
+  const fetchAll = useCallback(async () => {
+    // El admin ve todo: borradores, publicados y pasados. Sin límite propio
+    // (a diferencia del catálogo público), así que hay que paginar de verdad
+    // en vez de fiarse de un límite fijo: Supabase corta en 1000 filas por
+    // página y esta vista ya supera eso.
+    const PAGE_SIZE = 1000;
+    const all: KidsEvent[] = [];
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .order('starts_at', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
+      if (error || !data) break;
+      all.push(...(data as KidsEvent[]));
+      if (data.length < PAGE_SIZE) break;
+    }
+    setEvents(all);
   }, []);
 
-  useFocusEffect(fetchAll);
-
-  // Ciudades presentes en la BD, con cuántos eventos tiene cada una (para
-  // no perderse entre cientos de borradores de varias ciudades a la vez).
-  const cities = useMemo(() => {
-    const counts = new Map();
-    for (const e of events) counts.set(e.city, (counts.get(e.city) ?? 0) + 1);
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  }, [events]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchAll();
+    }, [fetchAll])
+  );
 
   const byCity = useCallback(
     (list: KidsEvent[]) => (cityFilter === 'all' ? list : list.filter((e) => e.city === cityFilter)),
     [cityFilter]
   );
+
+  // Si el evento encaja en la pestaña de estado activa (Borradores/
+  // Publicados/Todos/Caducados), sin mirar aún la ciudad ni la búsqueda.
+  // Se usa tanto para la lista visible como para los contadores de ciudad,
+  // así ambos coinciden siempre en qué cuentan como "relevante ahora mismo".
+  const matchesStatusTab = useCallback(
+    (event: KidsEvent) => {
+      const now = new Date();
+      const expired = isExpiredDraft(event);
+      if (statusFilter === 'expired') return expired;
+      if (expired) return false; // los caducados solo se ven en su propia pestaña
+      if (statusFilter !== 'all' && event.status !== statusFilter) return false;
+      if (hidePast && new Date(event.last_date ?? event.starts_at) < now) return false;
+      return true;
+    },
+    [statusFilter, hidePast]
+  );
+
+  // Ciudades presentes en la BD, con cuántos eventos tiene cada una EN LA
+  // PESTAÑA ACTIVA (si estás en "Borradores", cada ciudad muestra cuántos
+  // borradores tiene, no su total histórico) — para no perderse entre
+  // cientos de eventos de varias ciudades a la vez.
+  const cities = useMemo(() => {
+    const counts = new Map();
+    for (const e of events.filter(matchesStatusTab)) counts.set(e.city, (counts.get(e.city) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [events, matchesStatusTab]);
 
   const counts = useMemo(() => {
     const now = new Date();
@@ -77,21 +111,13 @@ export default function AdminEventList() {
 
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
-    const now = new Date();
     return byCity(events).filter((event) => {
-      const expired = isExpiredDraft(event);
-      if (statusFilter === 'expired') {
-        if (!expired) return false;
-      } else {
-        if (expired) return false; // los caducados solo se ven en su propia pestaña
-        if (statusFilter !== 'all' && event.status !== statusFilter) return false;
-        if (hidePast && new Date(event.last_date ?? event.starts_at) < now) return false;
-      }
+      if (!matchesStatusTab(event)) return false;
       if (query && !`${event.title} ${event.venue_name ?? ''}`.toLowerCase().includes(query))
         return false;
       return true;
     });
-  }, [events, statusFilter, search, hidePast, byCity]);
+  }, [events, search, byCity, matchesStatusTab]);
 
   const deleteExpired = () => {
     confirmAction(
@@ -229,9 +255,13 @@ export default function AdminEventList() {
                     <View style={[styles.badge, isDraft ? styles.badgeDraft : styles.badgePublished]}>
                       <Text style={styles.badgeText}>{isDraft ? 'BORRADOR' : 'PUBLICADO'}</Text>
                     </View>
-                    {item.featured ? (
+                    {isCurrentlyFeatured(item) ? (
                       <View style={[styles.badge, styles.badgeFeatured]}>
                         <Text style={styles.badgeText}>⭐ DESTACADO</Text>
+                      </View>
+                    ) : item.featured ? (
+                      <View style={[styles.badge, styles.badgeFeatured]}>
+                        <Text style={styles.badgeText}>⭐ CADUCADO</Text>
                       </View>
                     ) : null}
                   </View>

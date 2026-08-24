@@ -84,6 +84,7 @@ export default function EventForm() {
   const [pickedImage, setPickedImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [status, setStatus] = useState<'draft' | 'published'>('published');
   const [featured, setFeatured] = useState(false);
+  const [featuredUntil, setFeaturedUntil] = useState(''); // "AAAA-MM-DD", vacío = sin caducidad
   const [source, setSource] = useState('manual');
   const [saving, setSaving] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
@@ -104,6 +105,7 @@ export default function EventForm() {
         const event = data as KidsEvent;
         setStatus(event.status);
         setFeatured(event.featured);
+        setFeaturedUntil(event.featured_until ? toLocalInput(event.featured_until).slice(0, 10) : '');
         setSource(event.source);
         setDateMode(event.date_mode);
         if (event.date_mode === 'range') {
@@ -222,6 +224,9 @@ export default function EventForm() {
         ...schedule,
         status,
         featured,
+        featured_until: featured && featuredUntil.trim()
+          ? new Date(`${featuredUntil.trim()}T23:59`).toISOString()
+          : null,
         venue_name: form.venue_name.trim() || null,
         address: form.address.trim() || null,
         city: form.city.trim() || 'Madrid',
@@ -497,6 +502,18 @@ export default function EventForm() {
             <Text style={[styles.chipText, featured && styles.chipTextActive]}>⭐ Destacado</Text>
           </TouchableOpacity>
         </View>
+        {featured ? (
+          <View style={styles.half}>
+            <Text style={styles.label}>Destacado hasta (AAAA-MM-DD, opcional)</Text>
+            <TextInput
+              style={styles.input}
+              value={featuredUntil}
+              onChangeText={setFeaturedUntil}
+              placeholder="Vacío = destacado permanente"
+              placeholderTextColor={colors.textMuted}
+            />
+          </View>
+        ) : null}
       </Field>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}

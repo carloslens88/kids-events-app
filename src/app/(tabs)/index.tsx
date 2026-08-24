@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   RefreshControl,
@@ -25,6 +25,7 @@ import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import {
   AgeRange,
   CategoryId,
+  isCurrentlyFeatured,
   KidsEvent,
   nextOccurrence,
   occursBetween,
@@ -32,6 +33,11 @@ import {
   weekendRange,
 } from '@/lib/types';
 import { rainWarning, useRainForecast } from '@/lib/weather';
+
+// Ciudades con mucho volumen (Madrid, Barcelona...) llegaban a superar el
+// centenar de tarjetas en un solo scroll interminable; con esto se cortan en
+// páginas manejables.
+const PAGE_SIZE = 20;
 
 // Búsqueda sin distinguir mayúsculas ni acentos ("musica" encuentra "Música").
 const normalize = (text: string) =>
@@ -51,10 +57,12 @@ export default function EventsScreen() {
   const [freeOnly, setFreeOnly] = useState(false);
   const [search, setSearch] = useState('');
   const [kidsFilterOn, setKidsFilterOn] = useState(true);
+  const [page, setPage] = useState(0);
   const { city, setCity, cities } = useCity();
   const { profile, loaded: profileLoaded, save: saveProfile } = useKidsProfile();
   const userCoords = useUserLocation();
   const insets = useSafeAreaInsets();
+  const listRef = useRef<FlatList>(null);
 
   const fetchEvents = useCallback(async () => {
     setError(null);
@@ -120,10 +128,30 @@ export default function EventsScreen() {
         return true;
       })
       .sort((a, b) => {
-        if (a.featured !== b.featured) return a.featured ? -1 : 1;
+        const aFeatured = isCurrentlyFeatured(a);
+        const bFeatured = isCurrentlyFeatured(b);
+        if (aFeatured !== bFeatured) return aFeatured ? -1 : 1;
         return nextOccurrence(a, now).getTime() - nextOccurrence(b, now).getTime();
       });
   }, [events, search, quickFilter, freeOnly, kidsFilterOn, kidsBands]);
+
+  // Al cambiar de ciudad o de filtro, se vuelve a la página 1 — si no,
+  // podrías quedarte "atrapado" en una página 4 que ya no existe.
+  useEffect(() => {
+    setPage(0);
+  }, [city, search, quickFilter, freeOnly, kidsFilterOn]);
+
+  const totalPages = Math.max(1, Math.ceil(visibleEvents.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages - 1);
+  const pagedEvents = useMemo(
+    () => visibleEvents.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE),
+    [visibleEvents, currentPage]
+  );
+
+  const goToPage = (next: number) => {
+    setPage(next);
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+  };
 
   if (!isSupabaseConfigured) return <SetupNotice />;
 
@@ -187,7 +215,8 @@ export default function EventsScreen() {
         </View>
       ) : (
         <FlatList
-          data={visibleEvents}
+          ref={listRef}
+          data={pagedEvents}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <EventCard event={item} userCoords={userCoords} rainWarning={rainWarning(item, rain)} />
@@ -209,6 +238,33 @@ export default function EventsScreen() {
               <Text style={styles.emptyTitle}>No hay eventos con estos filtros</Text>
               <Text style={styles.emptyText}>Prueba a quitar algún filtro o vuelve más tarde.</Text>
             </View>
+          }
+          ListFooterComponent={
+            totalPages > 1 ? (
+              <View style={styles.pager}>
+                <TouchableOpacity
+                  style={[styles.pagerButton, currentPage === 0 && styles.pagerButtonDisabled]}
+                  onPress={() => goToPage(currentPage - 1)}
+                  disabled={currentPage === 0}
+                >
+                  <Ionicons name="chevron-back" size={18} color={currentPage === 0 ? colors.textMuted : colors.primary} />
+                </TouchableOpacity>
+                <Text style={styles.pagerLabel}>
+                  Página {currentPage + 1} de {totalPages}
+                </Text>
+                <TouchableOpacity
+                  style={[styles.pagerButton, currentPage >= totalPages - 1 && styles.pagerButtonDisabled]}
+                  onPress={() => goToPage(currentPage + 1)}
+                  disabled={currentPage >= totalPages - 1}
+                >
+                  <Ionicons
+                    name="chevron-forward"
+                    size={18}
+                    color={currentPage >= totalPages - 1 ? colors.textMuted : colors.primary}
+                  />
+                </TouchableOpacity>
+              </View>
+            ) : null
           }
         />
       )}
@@ -247,4 +303,23 @@ const styles = StyleSheet.create({
   emptyEmoji: { fontSize: 44 },
   emptyTitle: { fontFamily: fonts.heading, fontSize: 17, color: colors.text, textAlign: 'center' },
   emptyText: { fontFamily: fonts.body, fontSize: 14, color: colors.textMuted, textAlign: 'center' },
+  pager: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    paddingVertical: 16,
+  },
+  pagerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.chip,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  pagerButtonDisabled: { opacity: 0.4 },
+  pagerLabel: { fontFamily: fonts.heading, fontSize: 13, color: colors.text },
 });

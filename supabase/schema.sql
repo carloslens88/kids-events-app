@@ -35,6 +35,7 @@ create table public.events (
   source text not null default 'manual', -- manual | madrid_opendata | eventbrite
   external_id text unique, -- id en la fuente externa (dedupe de importaciones)
   featured boolean not null default false, -- destacado: arriba y con estrella
+  featured_until timestamptz, -- opcional: si se pasa, deja de contar como destacado sin tocar "featured"
   created_at timestamptz not null default now()
 );
 

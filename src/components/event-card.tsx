@@ -11,6 +11,7 @@ import {
   formatPrice,
   formatSchedule,
   getCategory,
+  isCurrentlyFeatured,
   KidsEvent,
   nextOccurrence,
   relativeDayLabel,
@@ -69,7 +70,7 @@ export function EventCard({ event, userCoords, rainWarning }: Props) {
             </View>
           ) : null}
 
-          {event.featured ? (
+          {isCurrentlyFeatured(event) ? (
             <View style={styles.featuredBadge}>
               <Text style={styles.featuredText}>⭐ Top</Text>
             </View>

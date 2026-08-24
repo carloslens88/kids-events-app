@@ -1,0 +1,25 @@
+# Revisa los borradores cada noche y publica automáticamente los que tienen
+# los campos clave completos (poniéndoles una foto de Pexels si no traen
+# una propia). Corre después del importador para dar tiempo a que entren
+# los borradores del día.
+name: Publicar eventos automáticamente
+
+on:
+  schedule:
+    - cron: '0 22 * * *' # todos los días a las 22:00 UTC (00:00 en Madrid en verano)
+  workflow_dispatch: {} # permite lanzarlo a mano desde la pestaña Actions
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Publicar borradores completos
+        run: node scripts/publish-events.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
