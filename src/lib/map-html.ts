@@ -16,7 +16,11 @@ const CITY_CENTERS: Record<string, [number, number]> = {
 // versión nativa (WebView) y la web (iframe). El centrado/marcador de "mi
 // ubicación" se controla después, en caliente, con un mensaje — así pulsar
 // el botón no recarga el mapa entero ni pierde el zoom/posición actuales.
-export function buildMapHtml(events: KidsEvent[], city: string): string {
+export function buildMapHtml(
+  events: KidsEvent[],
+  city: string,
+  fallbackCenter?: [number, number] | null
+): string {
   const markers = events
     .filter((e) => e.lat != null && e.lng != null)
     .map((e) => {
@@ -31,7 +35,10 @@ export function buildMapHtml(events: KidsEvent[], city: string): string {
       };
     });
 
-  const fallbackCenter = CITY_CENTERS[city] ?? CITY_CENTERS.Madrid;
+  // Al buscar "en esta zona" (fuera de la ciudad seleccionada) puede no
+  // haber ningún pin; sin este override el mapa saltaría de vuelta al
+  // centro de la ciudad original en vez de quedarse donde el usuario buscó.
+  const resolvedFallbackCenter = fallbackCenter ?? CITY_CENTERS[city] ?? CITY_CENTERS.Madrid;
 
   return `<!DOCTYPE html><html><head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
@@ -48,13 +55,18 @@ export function buildMapHtml(events: KidsEvent[], city: string): string {
       .leaflet-control-attribution { font-size: 9px; padding: 0 4px; opacity: 0.7; }
     </style>
   </head><body><div id="map"></div><script>
-    function openEvent(id) {
-      const msg = { pequeEventId: id };
-      if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(id);
+    // Un solo canal de mensajes hacia fuera (evento tocado, mapa movido a
+    // mano...), igual en WebView de React Native que en iframe web: siempre
+    // un objeto con una clave que dice de qué mensaje se trata.
+    function postToParent(msg) {
+      if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(msg));
       else window.parent.postMessage(msg, '*');
     }
+    function openEvent(id) {
+      postToParent({ pequeEventId: id });
+    }
     const markers = ${JSON.stringify(markers)};
-    const fallbackCenter = ${JSON.stringify(fallbackCenter)};
+    const fallbackCenter = ${JSON.stringify(resolvedFallbackCenter)};
 
     const map = L.map('map', { zoomControl: false });
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -88,6 +100,21 @@ export function buildMapHtml(events: KidsEvent[], city: string): string {
     } else {
       map.setView(fallbackCenter, 12);
     }
+
+    // Avisar cuando el usuario mueve el mapa a mano (arrastrar o hacer
+    // zoom), para poder ofrecer "buscar en esta zona" sin que haga falta
+    // pulsar antes el botón de ubicación. dragstart/zoomstart solo los
+    // dispara una interacción real del usuario (Leaflet no los emite en
+    // fitBounds/setView programáticos), así que sirven para no confundir un
+    // movimiento nuestro con uno suyo y avisar de más.
+    let userMoved = false;
+    map.on('dragstart zoomstart', () => { userMoved = true; });
+    map.on('moveend', () => {
+      if (!userMoved) return;
+      userMoved = false;
+      const center = map.getCenter();
+      postToParent({ mapMoved: { lat: center.lat, lng: center.lng } });
+    });
 
     // Botón "mi ubicación" del lado nativo/web: pide centrar el mapa y
     // pintar (o mover) el punto azul, sin recargar nada. Funciona tanto con

@@ -8,23 +8,29 @@ type Props = {
   events: KidsEvent[];
   city: string;
   centerOn?: { lat: number; lng: number } | null; // cambia para recentrar en caliente
+  fallbackCenter?: [number, number] | null; // dónde centrar si events viene vacío
+  onMapMoved?: (point: { lat: number; lng: number }) => void; // el usuario arrastró/hizo zoom a mano
 };
 
 // Versión web: el mismo mapa Leaflet, dentro de un iframe.
 // Los pines avisan con postMessage al window padre para navegar al detalle.
-export function EventsMap({ events, city, centerOn }: Props) {
+export function EventsMap({ events, city, centerOn, fallbackCenter, onMapMoved }: Props) {
   const router = useRouter();
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const html = useMemo(() => buildMapHtml(events, city), [events, city]);
+  const html = useMemo(
+    () => buildMapHtml(events, city, fallbackCenter),
+    [events, city, fallbackCenter]
+  );
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
-      const id = (event.data as { pequeEventId?: string })?.pequeEventId;
-      if (id) router.push({ pathname: '/event/[id]', params: { id } });
+      const data = event.data as { pequeEventId?: string; mapMoved?: { lat: number; lng: number } };
+      if (data?.pequeEventId) router.push({ pathname: '/event/[id]', params: { id: data.pequeEventId } });
+      else if (data?.mapMoved) onMapMoved?.(data.mapMoved);
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [router]);
+  }, [router, onMapMoved]);
 
   useEffect(() => {
     if (!centerOn) return;
