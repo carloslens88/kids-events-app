@@ -13,7 +13,10 @@
     },
     "ios": {
       "bundleIdentifier": "io.github.carloslens88.pequeeventos",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "io.github.carloslens88.pequeeventos",
